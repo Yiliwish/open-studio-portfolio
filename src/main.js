@@ -10,15 +10,18 @@ const loadingDetail = $('#loading-detail');
 const loadingBar = $('#loading-bar');
 const loadingPercent = $('#loading-percent');
 const dialog = $('#work-dialog');
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const list = $('#work-list');
 const toast = $('#toast');
 const status = $('#scene-status');
+const tooltip = $('#work-tooltip');
+const tooltipNumber = $('#work-tooltip-number');
+const tooltipTitle = $('#work-tooltip-title');
 
 let studio = null;
 let activeWorkId = null;
 let toastTimer = null;
 let previousWorkTrigger = null;
+let selectionRevision = 0;
 
 works.forEach((work, index) => {
   const button = document.createElement('button');
@@ -52,17 +55,18 @@ function setActive(id) {
     chip.setAttribute('aria-pressed', String(selected));
   }
   const work = works.find((entry) => entry.id === id);
-  status.textContent = work ? `已选中：${work.title}` : '拖动旋转工作室，点击桌面模型查看作品';
+  status.textContent = work ? `已选中：${work.title}` : '小幅拖动改变视角；悬停提示，点击模型浏览作品';
 }
 
-function openWork(id, trigger = canvas) {
+async function openWork(id, trigger = canvas) {
   const work = works.find((entry) => entry.id === id);
   if (!work) return;
+  const revision = ++selectionRevision;
   if (!dialog.open) {
     previousWorkTrigger = trigger || canvas;
     studio?.saveView();
-    if (!dialog.open) dialog.showModal();
   }
+  hideTooltip();
   setActive(id);
   const index = works.indexOf(work) + 1;
   $('#work-title').textContent = work.title;
@@ -70,26 +74,34 @@ function openWork(id, trigger = canvas) {
   $('#work-description').textContent = work.description;
   $('#work-index').textContent = String(index).padStart(2, '0');
   $('#work-number').textContent = `作品 ${String(index).padStart(2, '0')} / ${String(works.length).padStart(2, '0')}`;
-  studio?.focusWork(id);
+  const motion = studio?.focusWork(id);
+  if (motion && typeof motion.then === 'function') await motion;
+  if (revision !== selectionRevision || activeWorkId !== id) return;
+  if (!dialog.open) dialog.showModal();
 }
 
 function closeWork({ overview = false } = {}) {
+  selectionRevision += 1;
   if (dialog.open) dialog.close();
-  if (overview) studio?.returnToOverview();
-  else if (studio?.restoreView) studio.restoreView();
-  if (previousWorkTrigger?.isConnected) {
-    window.setTimeout(() => previousWorkTrigger.focus({ preventScroll: true }), reducedMotion ? 0 : 740);
-  }
+  hideTooltip();
+  setActive(null);
+  const motion = overview ? studio?.returnToOverview() : studio?.restoreView();
+  return Promise.resolve(motion).then(() => {
+    if (previousWorkTrigger?.isConnected) previousWorkTrigger.focus({ preventScroll: true });
+  });
 }
 
 $('#close-work').addEventListener('click', () => closeWork());
 $('#reset-view').addEventListener('click', () => {
+  selectionRevision += 1;
   if (dialog.open) dialog.close();
+  hideTooltip();
   studio?.returnToOverview();
   setActive(null);
 });
-dialog.addEventListener('cancel', () => {
-  if (studio) studio.restoreView();
+dialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeWork();
 });
 dialog.addEventListener('close', () => setActive(null));
 
@@ -101,13 +113,6 @@ function stepWork(direction) {
 
 $('#previous-work').addEventListener('click', () => stepWork(-1));
 $('#next-work').addEventListener('click', () => stepWork(1));
-window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && dialog.open) {
-    event.preventDefault();
-    closeWork();
-  }
-});
-
 const controller = createStudio({
   canvas,
   onProgress(percent) {
@@ -121,7 +126,7 @@ const controller = createStudio({
     $('#scene-poster').classList.add('hidden');
     document.documentElement.classList.add('scene-ready');
     updateLoadProgress(100);
-    status.textContent = '拖动旋转工作室，点击桌面模型查看作品';
+    status.textContent = '小幅拖动改变视角；悬停提示，点击模型浏览作品';
     canvas.focus({ preventScroll: true });
     if (workRoots.size < works.length) showToast('工作室已打开，部分桌面模型正在整理。');
     registerWebMcp();
@@ -138,10 +143,27 @@ const controller = createStudio({
   onSelect(id, { source }) {
     openWork(id, source === 'canvas' ? canvas : null);
   },
-  onHover(id) {
+  onHover(id, point) {
     for (const chip of list.querySelectorAll('.work-chip')) chip.classList.toggle('hovered', chip.dataset.workId === id);
+    const workIndex = works.findIndex((work) => work.id === id);
+    if (workIndex < 0 || !point) {
+      hideTooltip();
+      return;
+    }
+    const work = works[workIndex];
+    tooltipNumber.textContent = String(workIndex + 1).padStart(2, '0');
+    tooltipTitle.textContent = work.title;
+    const x = Math.max(10, Math.min(point.width - 184, point.x + 14));
+    const y = Math.max(76, Math.min(point.height - 144, point.y + 14));
+    tooltip.style.setProperty('--tooltip-x', `${x}px`);
+    tooltip.style.setProperty('--tooltip-y', `${y}px`);
+    tooltip.classList.add('visible');
   },
 });
+
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
 
 function registerWebMcp() {
   const context = document.modelContext;
@@ -175,9 +197,8 @@ function registerWebMcp() {
     annotations: { readOnlyHint: false, untrustedContentHint: false },
     execute: async ({ id }) => {
       if (!works.some((work) => work.id === id)) throw new TypeError('Unknown studio work id.');
-      openWork(id, canvas);
-      await new Promise((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : 760));
-      return { opened: activeWorkId === id, id, title: works.find((work) => work.id === id).title };
+      await openWork(id, canvas);
+      return { opened: dialog.open && activeWorkId === id, id, title: works.find((work) => work.id === id).title };
     },
   });
   register({
@@ -187,9 +208,7 @@ function registerWebMcp() {
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: false, untrustedContentHint: false },
     execute: async () => {
-      closeWork({ overview: true });
-      setActive(null);
-      await new Promise((resolve) => window.setTimeout(resolve, reducedMotion ? 0 : 760));
+      await closeWork({ overview: true });
       return { view: 'studio-overview', openWork: null };
     },
   });

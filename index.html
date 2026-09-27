@@ -12,7 +12,12 @@
     <main id="portfolio" aria-label="3D 工作室作品集">
       <div class="world" id="world">
         <img class="scene-poster" id="scene-poster" src="/scene-preview.png" alt="工作室模型预览" />
-        <canvas id="studio-canvas" tabindex="0" aria-label="3D 工作室场景。拖动旋转，滚轮缩放，按方向键旋转视角。点击桌面模型查看作品。"></canvas>
+        <canvas id="studio-canvas" tabindex="0" aria-label="3D 工作室场景。拖动改变视角，滚轮缩放，按 R 或 Home 恢复全景，点击模型查看作品。"></canvas>
+        <div class="work-tooltip" id="work-tooltip" aria-hidden="true">
+          <span class="tooltip-number" id="work-tooltip-number">01</span>
+          <span class="tooltip-copy"><strong id="work-tooltip-title">作品名称</strong><small>点击查看作品</small></span>
+          <span class="tooltip-enter" aria-hidden="true">↵</span>
+        </div>
         <div class="world-wash" aria-hidden="true"></div>
 
         <header class="masthead">
@@ -21,7 +26,7 @@
             <span class="brand-copy"><strong>OPEN STUDIO</strong><small>3D WORKS · 01—05</small></span>
           </a>
           <div class="masthead-tools">
-            <p class="interaction-hint"><span class="hint-dot" aria-hidden="true"></span>拖动旋转 <b>·</b> 点击桌面模型</p>
+            <p class="interaction-hint"><span class="hint-dot" aria-hidden="true"></span>小幅拖动 <b>·</b> 悬停提示</p>
             <button class="icon-button reset-button" id="reset-view" type="button" aria-label="恢复工作室初始视角" title="恢复初始视角">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.4 10a7.8 7.8 0 1 1-.2 3.4M4.4 10V4.9M4.4 10h5.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>

@@ -1,0 +1,18 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.16.0
+2 info using node@v24.18.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:E:\3d网页\portfolio-site\.npmrc
+5 silly config load:file:C:\Users\ME\.npmrc
+6 silly config load:file:d:\work-ai-codex\etc\npmrc
+7 verbose title npm exec ui-skills get mengto/threejs cloudai-x/threejs-interaction cloudai-x/threejs-shaders
+8 verbose argv "exec" "--yes" "--registry" "https://registry.npmjs.org" "--cache" ".npm-cache" "--" "ui-skills" "get" "mengto/threejs" "cloudai-x/threejs-interaction" "cloudai-x/threejs-shaders"
+9 verbose logfile logs-max:10 dir:E:\3d网页\portfolio-site\.npm-cache\_logs\2026-09-27T14_05_37_567Z-
+10 verbose logfile E:\3d网页\portfolio-site\.npm-cache\_logs\2026-09-27T14_05_37_567Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules
+14 http fetch GET https://registry.npmjs.org/npm attempt 1 failed with EACCES
+15 http fetch GET https://registry.npmjs.org/ui-skills attempt 1 failed with EACCES
+16 http fetch GET https://registry.npmjs.org/npm attempt 2 failed with EACCES
+17 http fetch GET https://registry.npmjs.org/ui-skills attempt 2 failed with EACCES

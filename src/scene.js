@@ -49,6 +49,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   controls.maxDistance = 54;
   controls.minPolarAngle = 1.18;
   controls.maxPolarAngle = 1.76;
+  controls.minAzimuthAngle = -0.48;
+  controls.maxAzimuthAngle = 0.48;
   controls.update();
 
   const raycaster = new THREE.Raycaster();
@@ -60,6 +62,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   let animationFrame = 0;
   let activeMotion = false;
   let rememberedView = null;
+  let motionResolve = null;
 
   const render = () => renderer.render(scene, camera);
   controls.addEventListener('change', render);
@@ -136,27 +139,39 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
 
   function animateView(position, target, done) {
     cancelAnimationFrame(animationFrame);
+    if (motionResolve) {
+      const resolvePrevious = motionResolve;
+      motionResolve = null;
+      activeMotion = false;
+      controls.enabled = true;
+      resolvePrevious(false);
+    }
     controls.enabled = false;
     const fromPosition = camera.position.clone();
     const fromTarget = controls.target.clone();
     const startedAt = performance.now();
     const duration = reduceMotion ? 0 : 720;
-    const frame = (now) => {
-      const t = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      camera.position.lerpVectors(fromPosition, position, eased);
-      controls.target.lerpVectors(fromTarget, target, eased);
-      controls.update();
-      if (t < 1) animationFrame = requestAnimationFrame(frame);
-      else {
-        activeMotion = false;
-        controls.enabled = true;
-        if (done) done();
-        render();
-      }
-    };
-    activeMotion = true;
-    animationFrame = requestAnimationFrame(frame);
+    return new Promise((resolve) => {
+      motionResolve = resolve;
+      const frame = (now) => {
+        const t = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        camera.position.lerpVectors(fromPosition, position, eased);
+        controls.target.lerpVectors(fromTarget, target, eased);
+        controls.update();
+        if (t < 1) animationFrame = requestAnimationFrame(frame);
+        else {
+          activeMotion = false;
+          controls.enabled = true;
+          if (motionResolve === resolve) motionResolve = null;
+          if (done) done();
+          render();
+          resolve(true);
+        }
+      };
+      activeMotion = true;
+      animationFrame = requestAnimationFrame(frame);
+    });
   }
 
   function focusWork(id) {
@@ -173,12 +188,14 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     nextPosition.y = Math.max(nextPosition.y, center.y + height * 0.48);
     nextPosition.z = Math.max(nextPosition.z, 4.4);
     const nextTarget = center.clone().add(new THREE.Vector3(0, height * 0.1, 0));
-    animateView(nextPosition, nextTarget);
-    return true;
+    controls.minDistance = 2.2;
+    return animateView(nextPosition, nextTarget);
   }
 
   function returnToOverview() {
-    animateView(homePosition, homeTarget);
+    return animateView(homePosition, homeTarget, () => {
+      controls.minDistance = 13;
+    });
   }
 
   canvas.addEventListener('pointermove', (event) => {
@@ -186,7 +203,10 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     const first = hitsAt(event)[0];
     const id = first ? resolveWork(first.object) : null;
     canvas.style.cursor = id ? 'pointer' : 'grab';
-    if (viewChangeHandler) viewChangeHandler(id);
+    const rect = canvas.getBoundingClientRect();
+    const point = id ? { x: event.clientX - rect.left, y: event.clientY - rect.top, width: rect.width, height: rect.height } : null;
+    if (onHover) onHover(id, point);
+    if (viewChangeHandler) viewChangeHandler(id, point);
   });
 
   let pressed = null;
@@ -206,7 +226,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   });
   canvas.addEventListener('pointerleave', () => {
     canvas.style.cursor = 'grab';
-    if (viewChangeHandler) viewChangeHandler(null);
+    if (onHover) onHover(null, null);
+    if (viewChangeHandler) viewChangeHandler(null, null);
   });
   canvas.addEventListener('keydown', (event) => {
     if (event.key.toLowerCase() === 'r' || event.key === 'Home') {
@@ -222,10 +243,14 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     focusWork,
     returnToOverview,
     setViewChangeHandler(handler) { viewChangeHandler = handler; },
-    saveView() { rememberedView = { position: camera.position.clone(), target: controls.target.clone() }; },
+    saveView() { rememberedView = { position: camera.position.clone(), target: controls.target.clone(), minDistance: controls.minDistance }; },
     restoreView() {
       if (!rememberedView) return returnToOverview();
-      animateView(rememberedView.position, rememberedView.target);
+      const view = rememberedView;
+      return animateView(view.position, view.target, () => {
+        controls.minDistance = view.minDistance;
+        rememberedView = null;
+      });
     },
     render,
     dispose() {
@@ -256,16 +281,36 @@ function createSky(scene) {
     vertexShader: `varying vec3 vSkyDirection; void main(){ vec4 world = modelMatrix * vec4(position,1.0); vSkyDirection = normalize(world.xyz - cameraPosition); gl_Position = projectionMatrix * viewMatrix * world; }`,
     fragmentShader: `
       varying vec3 vSkyDirection;
+      float cloudPuff(vec2 point, vec2 center, vec2 radius) {
+        vec2 q = (point - center) / radius;
+        return exp(-dot(q, q) * 2.2);
+      }
+      float cloudCluster(vec2 point, float x, float y) {
+        float mass = cloudPuff(point, vec2(x, y - 0.008), vec2(0.085, 0.019));
+        mass += cloudPuff(point, vec2(x - 0.045, y + 0.006), vec2(0.043, 0.028));
+        mass += cloudPuff(point, vec2(x - 0.012, y + 0.026), vec2(0.047, 0.037));
+        mass += cloudPuff(point, vec2(x + 0.034, y + 0.018), vec2(0.046, 0.032));
+        mass += cloudPuff(point, vec2(x + 0.071, y + 0.004), vec2(0.035, 0.023));
+        return smoothstep(1.18, 1.58, mass);
+      }
       void main() {
         vec3 d = normalize(vSkyDirection);
-        float h = smoothstep(-0.075, 0.68, d.y);
-        vec3 horizon = vec3(0.82, 0.86, 0.80);
-        vec3 zenith = vec3(0.54, 0.71, 0.80);
+        float elevation = asin(clamp(d.y, -1.0, 1.0));
+        float azimuth = atan(d.x, -d.z);
+        float h = smoothstep(-0.055, 0.19, d.y);
+        vec3 horizon = vec3(1.00, 0.91, 0.77);
+        vec3 zenith = vec3(0.29, 0.57, 0.89);
         vec3 color = mix(horizon, zenith, h);
-        float glow = pow(max(dot(d, normalize(vec3(-0.34, 0.67, 0.53))), 0.0), 11.0);
-        color += vec3(0.09, 0.065, 0.035) * glow;
-        float cloud = sin(d.x * 13.0 + d.y * 3.0) * sin(d.z * 16.0 - d.y * 5.0);
-        color = mix(color, vec3(0.91, 0.91, 0.85), smoothstep(0.76, 0.96, cloud) * h * 0.09);
+        vec2 skyPoint = vec2(azimuth, elevation);
+        float clouds = max(max(cloudCluster(skyPoint, -0.46, 0.078), cloudCluster(skyPoint, -0.23, 0.092)), max(cloudCluster(skyPoint, 0.02, 0.076), max(cloudCluster(skyPoint, 0.27, 0.094), cloudCluster(skyPoint, 0.49, 0.078))));
+        vec3 cloudColor = mix(vec3(0.90, 0.86, 0.78), vec3(1.0, 0.99, 0.96), smoothstep(0.015, 0.055, elevation));
+        color = mix(color, cloudColor, clouds * 0.98);
+        vec3 sunDirection = normalize(vec3(-0.28, 0.055, -0.96));
+        float sunDot = max(dot(d, sunDirection), 0.0);
+        float sunDisk = smoothstep(0.99945, 0.99978, sunDot);
+        float sunHalo = pow(sunDot, 24.0) * 0.18 + pow(sunDot, 72.0) * 0.26;
+        color = mix(color, vec3(1.0, 0.97, 0.86), sunDisk);
+        color += vec3(0.12, 0.09, 0.05) * sunHalo;
         gl_FragColor = vec4(color, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
