@@ -1,7 +1,7 @@
 :root {
   font-family: 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
   color: #24322b;
-  background: #e4e9dd;
+  background: #bab6b0;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -22,8 +22,8 @@ button, a { color: inherit; font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid #a53b2c; outline-offset: 3px; }
 
-.world { position: relative; isolation: isolate; width: 100%; height: 100%; overflow: hidden; background: linear-gradient(180deg, #dcebf0 0%, #e3ebdf 53%, #889a63 100%); }
-.world::after { position: absolute; z-index: -1; right: -14vw; bottom: -37vh; width: 80vw; height: 65vh; border-radius: 50%; background: rgba(246, 237, 207, 0.25); filter: blur(74px); content: ''; pointer-events: none; }
+.world { position: relative; isolation: isolate; width: 100%; height: 100%; overflow: hidden; background: #bab6b0; }
+.world::after { display: none; }
 #studio-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 #studio-canvas:active { cursor: grabbing; }
 .work-tooltip { position: absolute; z-index: 2; top: 0; left: 0; display: flex; min-width: 170px; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid rgba(53, 71, 55, .16); border-radius: 14px; background: rgba(250, 248, 239, .94); box-shadow: 0 9px 26px rgba(38, 53, 42, .14); opacity: 0; visibility: hidden; transform: translate3d(var(--tooltip-x, 0), var(--tooltip-y, 0), 0) translate(9px, 9px) scale(.98); transition: opacity .16s ease, transform .16s ease, visibility .16s; backdrop-filter: blur(13px); pointer-events: none; }
@@ -35,7 +35,7 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .tooltip-enter { margin-left: auto; color: #92998e; font-family: Consolas, monospace; font-size: 13px; }
 .scene-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 53%; transition: opacity .75s ease; }
 .scene-poster.hidden { opacity: 0; }
-.world-wash { position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(248, 248, 239, .035) 0%, transparent 22%, transparent 72%, rgba(54, 71, 49, .08) 100%); }
+.world-wash { position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(255, 252, 246, .06), transparent 34%); }
 
 .masthead { position: absolute; z-index: 3; top: max(22px, env(safe-area-inset-top)); right: max(28px, env(safe-area-inset-right)); left: max(28px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
 .brand, .masthead-tools { pointer-events: auto; }
