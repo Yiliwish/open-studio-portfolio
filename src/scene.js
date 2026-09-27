@@ -350,6 +350,7 @@ function createMeadow(scene) {
   ground.receiveShadow = false;
   scene.add(ground);
   createGrassBlades(scene);
+  createWildflowers(scene);
 }
 
 function valueNoise(x, z) {
@@ -404,6 +405,80 @@ function createGrassBlades(scene) {
   if (blades.instanceColor) blades.instanceColor.needsUpdate = true;
   blades.computeBoundingSphere();
   scene.add(blades);
+}
+
+function createWildflowers(scene) {
+  const patchCount = 15;
+  const flowers = [];
+  const random = seededRandom(62481);
+  const petalColors = ['#f58bb5', '#f8a2c2', '#ee79a7', '#ffc0d5'].map((color) => new THREE.Color(color));
+  const centerColor = new THREE.Color('#f4c66e');
+  const stemColor = new THREE.Color('#6f9259');
+
+  for (let patch = 0; patch < patchCount; patch += 1) {
+    const foreground = patch < 5;
+    const side = random() < 0.5 ? -1 : 1;
+    const patchX = foreground ? (random() - 0.5) * 14 : side * (16.5 + random() * 7);
+    const patchZ = foreground ? 8 + random() * 4 : -32 + random() * 19;
+    const patchFlowers = foreground ? 4 + Math.floor(random() * 3) : 4 + Math.floor(random() * 4);
+    for (let i = 0; i < patchFlowers; i += 1) {
+      const spread = foreground ? 1.4 : 2.2;
+      const x = patchX + (random() + random() + random() - 1.5) * spread;
+      const z = patchZ + (random() + random() + random() - 1.5) * spread;
+      flowers.push({
+        x,
+        z,
+        stemHeight: 0.48 + random() * 0.29,
+        angle: random() * Math.PI * 2,
+        petalColor: petalColors[Math.floor(random() * petalColors.length)],
+      });
+    }
+  }
+
+  if (flowers.length === 0) return;
+  const petalGeometry = new THREE.SphereGeometry(1, 8, 6);
+  const petalMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.84, metalness: 0 });
+  const petals = new THREE.InstancedMesh(petalGeometry, petalMaterial, flowers.length * 5);
+  const centerGeometry = new THREE.SphereGeometry(1, 7, 5);
+  const centers = new THREE.InstancedMesh(centerGeometry, new THREE.MeshStandardMaterial({ color: centerColor, roughness: 0.78 }), flowers.length);
+  const stemGeometry = new THREE.CylinderGeometry(0.007, 0.011, 1, 5);
+  const stems = new THREE.InstancedMesh(stemGeometry, new THREE.MeshStandardMaterial({ color: stemColor, roughness: 0.92 }), flowers.length);
+  const dummy = new THREE.Object3D();
+  const headY = (flower) => -0.39 + flower.stemHeight;
+
+  flowers.forEach((flower, index) => {
+    const y = headY(flower);
+    for (let petal = 0; petal < 5; petal += 1) {
+      const angle = flower.angle + (petal / 5) * Math.PI * 2;
+      dummy.position.set(flower.x + Math.cos(angle) * 0.043, y + Math.sin(angle) * 0.043, flower.z + 0.012);
+      dummy.rotation.set(0, 0, angle);
+      dummy.scale.set(0.056, 0.039, 0.014);
+      dummy.updateMatrix();
+      const instance = index * 5 + petal;
+      petals.setMatrixAt(instance, dummy.matrix);
+      petals.setColorAt(instance, flower.petalColor);
+    }
+
+    dummy.position.set(flower.x, y, flower.z + 0.028);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(0.018, 0.018, 0.01);
+    dummy.updateMatrix();
+    centers.setMatrixAt(index, dummy.matrix);
+
+    dummy.position.set(flower.x, -0.39 + flower.stemHeight / 2, flower.z);
+    dummy.scale.set(1, flower.stemHeight, 1);
+    dummy.updateMatrix();
+    stems.setMatrixAt(index, dummy.matrix);
+  });
+
+  petals.instanceMatrix.needsUpdate = true;
+  if (petals.instanceColor) petals.instanceColor.needsUpdate = true;
+  centers.instanceMatrix.needsUpdate = true;
+  stems.instanceMatrix.needsUpdate = true;
+  petals.computeBoundingSphere();
+  centers.computeBoundingSphere();
+  stems.computeBoundingSphere();
+  scene.add(stems, petals, centers);
 }
 
 function seededRandom(seed) {
