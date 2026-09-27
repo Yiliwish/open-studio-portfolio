@@ -29,7 +29,9 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.08;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
+  const pixelRatioLimit = () => canvas.clientHeight > canvas.clientWidth ? 1.45 : 1.7;
+  const getPixelRatio = () => Math.min(window.devicePixelRatio || 1, pixelRatioLimit());
+  renderer.setPixelRatio(getPixelRatio());
 
   scene.add(new THREE.HemisphereLight(0xf4f8ff, 0x82775e, 2.05));
   const sunlight = new THREE.DirectionalLight(0xffedcf, 1.55);
@@ -76,15 +78,12 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   let rememberedView = null;
   let motionResolve = null;
 
-  const render = () => {
-    if (outlinePass?.selectedObjects.length) composer.render();
-    else renderer.render(scene, camera);
-  };
+  const render = () => composer.render();
 
   function prepareOutlinePass() {
     if (composer) return;
     composer = new EffectComposer(renderer);
-    composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    composer.setPixelRatio(renderer.getPixelRatio());
     composer.setSize(canvas.clientWidth, canvas.clientHeight);
     composer.addPass(new RenderPass(scene, camera));
     outlinePass = new OutlinePass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), scene, camera);
@@ -93,19 +92,24 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     outlinePass.edgeStrength = 2.25;
     outlinePass.edgeThickness = 1.25;
     outlinePass.edgeGlow = 0.2;
+    outlinePass.enabled = false;
     composer.addPass(outlinePass);
     composer.addPass(new OutputPass());
   }
+
+  // Keep the same tone-mapping and color-space path before, during, and after hover.
+  prepareOutlinePass();
 
   function setHoveredWork(id) {
     const nextId = id && workRoots.has(id) ? id : null;
     if (hoveredWorkId === nextId) return;
     hoveredWorkId = nextId;
     if (hoveredWorkId) {
-      prepareOutlinePass();
       outlinePass.selectedObjects = [workRoots.get(hoveredWorkId)];
+      outlinePass.enabled = true;
     } else if (outlinePass) {
       outlinePass.selectedObjects = [];
+      outlinePass.enabled = false;
     }
     if (!hoverFrame) {
       lastHoverFrameAt = performance.now();
@@ -144,10 +148,10 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     camera.fov = portrait ? 48 : 38;
     camera.aspect = clientWidth / clientHeight;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, portrait ? 1.45 : 1.7));
+    renderer.setPixelRatio(getPixelRatio());
     renderer.setSize(clientWidth, clientHeight, false);
     if (composer) {
-      composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+      composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(clientWidth, clientHeight);
     }
     render();
