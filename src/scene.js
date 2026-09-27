@@ -47,8 +47,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   controls.zoomSpeed = 0.62;
   controls.minDistance = 13;
   controls.maxDistance = 54;
-  controls.minPolarAngle = 1.18;
-  controls.maxPolarAngle = 1.76;
+  controls.minPolarAngle = 1.28;
+  controls.maxPolarAngle = 1.48;
   controls.minAzimuthAngle = -0.48;
   controls.maxAzimuthAngle = 0.48;
   controls.update();
