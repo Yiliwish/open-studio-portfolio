@@ -22,6 +22,7 @@ let activeWorkId = null;
 let toastTimer = null;
 let previousWorkTrigger = null;
 let selectionRevision = 0;
+let browsingState = 'overview';
 
 works.forEach((work, index) => {
   const button = document.createElement('button');
@@ -60,14 +61,17 @@ function setActive(id) {
 
 async function openWork(id, trigger = canvas) {
   const work = works.find((entry) => entry.id === id);
-  if (!work) return;
+  if (!work || browsingState === 'focusing' || browsingState === 'returning') return false;
   const revision = ++selectionRevision;
-  if (!dialog.open) {
+  if (browsingState === 'overview') {
     previousWorkTrigger = trigger || canvas;
     studio?.saveView();
   }
+  if (dialog.open) dialog.close();
+  browsingState = 'focusing';
   hideTooltip();
   setActive(id);
+  status.textContent = `正在靠近：${work.title}`;
   const index = works.indexOf(work) + 1;
   $('#work-title').textContent = work.title;
   $('#work-category').textContent = work.category;
@@ -75,35 +79,37 @@ async function openWork(id, trigger = canvas) {
   $('#work-index').textContent = String(index).padStart(2, '0');
   $('#work-number').textContent = `作品 ${String(index).padStart(2, '0')} / ${String(works.length).padStart(2, '0')}`;
   const motion = studio?.focusWork(id);
-  if (motion && typeof motion.then === 'function') await motion;
-  if (revision !== selectionRevision || activeWorkId !== id) return;
+  const moved = motion && typeof motion.then === 'function' ? await motion : true;
+  if (!moved || revision !== selectionRevision || activeWorkId !== id) return false;
+  browsingState = 'details';
+  status.textContent = `正在查看：${work.title}`;
   if (!dialog.open) dialog.showModal();
+  return true;
 }
 
 function closeWork({ overview = false } = {}) {
-  selectionRevision += 1;
+  const revision = ++selectionRevision;
+  browsingState = 'returning';
   if (dialog.open) dialog.close();
   hideTooltip();
   setActive(null);
   const motion = overview ? studio?.returnToOverview() : studio?.restoreView();
-  return Promise.resolve(motion).then(() => {
+  return Promise.resolve(motion).then((completed) => {
+    if (revision !== selectionRevision || completed === false) return;
+    browsingState = 'overview';
     if (previousWorkTrigger?.isConnected) previousWorkTrigger.focus({ preventScroll: true });
   });
 }
 
 $('#close-work').addEventListener('click', () => closeWork());
 $('#reset-view').addEventListener('click', () => {
-  selectionRevision += 1;
-  if (dialog.open) dialog.close();
-  hideTooltip();
-  studio?.returnToOverview();
-  setActive(null);
+  previousWorkTrigger = $('#reset-view');
+  closeWork({ overview: true });
 });
 dialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeWork();
 });
-dialog.addEventListener('close', () => setActive(null));
 
 function stepWork(direction) {
   const current = works.findIndex((work) => work.id === activeWorkId);
@@ -142,6 +148,10 @@ const controller = createStudio({
   },
   onSelect(id, { source }) {
     openWork(id, source === 'canvas' ? canvas : null);
+  },
+  onReset() {
+    previousWorkTrigger = canvas;
+    closeWork({ overview: true });
   },
   onHover(id, point) {
     for (const chip of list.querySelectorAll('.work-chip')) chip.classList.toggle('hovered', chip.dataset.workId === id);

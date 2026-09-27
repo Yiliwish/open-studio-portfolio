@@ -7,7 +7,7 @@ const MODEL_URL = '/models/studio.glb';
 const WORK_IDS = new Set(['printer', 'game-board', 'computer', 'video', 'architecture']);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, onHover }) {
+export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, onHover, onReset }) {
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xe5e8dd, 48, 142);
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 700);
@@ -150,12 +150,14 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     const fromPosition = camera.position.clone();
     const fromTarget = controls.target.clone();
     const startedAt = performance.now();
-    const duration = reduceMotion ? 0 : 720;
+    // The camera move explains where a work sits in the studio. Keep that
+    // orientation cue visible even when the browser requests less motion.
+    const duration = reduceMotion ? 850 : 1150;
     return new Promise((resolve) => {
       motionResolve = resolve;
       const frame = (now) => {
         const t = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
-        const eased = 1 - Math.pow(1 - t, 3);
+        const eased = t * t * (3 - 2 * t);
         camera.position.lerpVectors(fromPosition, position, eased);
         controls.target.lerpVectors(fromTarget, target, eased);
         controls.update();
@@ -193,6 +195,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   }
 
   function returnToOverview() {
+    rememberedView = null;
     return animateView(homePosition, homeTarget, () => {
       controls.minDistance = 13;
     });
@@ -219,7 +222,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     if (!pressed || pressed.id !== event.pointerId) return;
     const travel = Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y);
     pressed = null;
-    if (travel > 6) return;
+    if (travel > 6 || activeMotion) return;
     const first = hitsAt(event)[0];
     const id = first ? resolveWork(first.object) : null;
     if (id) onSelect(id, { source: 'canvas' });
@@ -232,7 +235,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   canvas.addEventListener('keydown', (event) => {
     if (event.key.toLowerCase() === 'r' || event.key === 'Home') {
       event.preventDefault();
-      returnToOverview();
+      if (onReset) onReset();
+      else returnToOverview();
     }
   });
 
