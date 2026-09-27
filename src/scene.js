@@ -31,16 +31,29 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.08;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.VSMShadowMap;
   const pixelRatioLimit = () => canvas.clientHeight > canvas.clientWidth ? 1.45 : 1.7;
   const getPixelRatio = () => Math.min(window.devicePixelRatio || 1, pixelRatioLimit());
   renderer.setPixelRatio(getPixelRatio());
 
-  scene.add(new THREE.HemisphereLight(0xf4f8ff, 0x82775e, 2.05));
-  const sunlight = new THREE.DirectionalLight(0xffedcf, 1.55);
+  scene.add(new THREE.HemisphereLight(0xf4f8ff, 0x82775e, 2.2));
+  const sunlight = new THREE.DirectionalLight(0xffedcf, 1.2);
   sunlight.position.set(-7, 12, 10);
-  sunlight.castShadow = false;
+  sunlight.castShadow = true;
+  sunlight.shadow.mapSize.set(2048, 2048);
+  sunlight.shadow.camera.left = -13;
+  sunlight.shadow.camera.right = 13;
+  sunlight.shadow.camera.top = 12;
+  sunlight.shadow.camera.bottom = -3;
+  sunlight.shadow.camera.near = 0.1;
+  sunlight.shadow.camera.far = 42;
+  sunlight.shadow.bias = -0.0002;
+  sunlight.shadow.normalBias = 0.02;
+  sunlight.shadow.radius = 5;
+  sunlight.shadow.camera.updateProjectionMatrix();
   scene.add(sunlight);
-  const softFill = new THREE.DirectionalLight(0xf0f4e8, 0.42);
+  const softFill = new THREE.DirectionalLight(0xf0f4e8, 0.62);
   softFill.position.set(8, 5, 2);
   scene.add(softFill);
 
@@ -166,8 +179,13 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     MODEL_URL,
     (gltf) => {
       const model = gltf.scene;
+      restoreWoodMaterials(model, renderer.capabilities.getMaxAnisotropy());
       scene.add(model);
       model.traverse((node) => {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
         if (node.userData?.portfolio_id && WORK_IDS.has(node.userData.portfolio_id)) {
           workRoots.set(node.userData.portfolio_id, node);
           interactive.push(node);
@@ -367,4 +385,85 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
       });
     },
   };
+}
+
+function restoreWoodMaterials(model, anisotropy) {
+  const palettes = [
+    { name: 'Workbench | warm birch grain', dark: [192, 159, 119], light: [221, 195, 160], seed: 13 },
+    { name: 'Cabinet | pale timber', dark: [199, 174, 143], light: [228, 207, 179], seed: 29 },
+    { name: 'Workbench | birch front', dark: [192, 158, 117], light: [218, 191, 155], seed: 47 },
+  ];
+  const textureByName = new Map();
+
+  model.traverse((node) => {
+    if (!node.isMesh || !node.material) return;
+    const wasArray = Array.isArray(node.material);
+    const materials = wasArray ? node.material : [node.material];
+    const restored = materials.map((material) => {
+      const palette = palettes.find((entry) => entry.name === material.name);
+      if (!palette) return material;
+
+      let texture = textureByName.get(palette.name);
+      if (!texture) {
+        texture = createWoodGrainTexture(palette, anisotropy);
+        textureByName.set(palette.name, texture);
+      }
+
+      const replacement = material.clone();
+      replacement.map = texture;
+      replacement.color.set('#ffffff');
+      replacement.roughness = Math.max(replacement.roughness, 0.72);
+      replacement.metalness = 0;
+      replacement.needsUpdate = true;
+      return replacement;
+    });
+    node.material = wasArray ? restored : restored[0];
+  });
+}
+
+function createWoodGrainTexture({ dark, light, seed }, anisotropy) {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  const image = context.createImageData(size, size);
+  const TAU = Math.PI * 2;
+  const clamp = (value) => THREE.MathUtils.clamp(value, 0, 1);
+
+  for (let y = 0; y < size; y += 1) {
+    const phase = (y / size) * TAU;
+    for (let x = 0; x < size; x += 1) {
+      const across = (x / size) * TAU;
+      const warp = 2.8 * Math.sin(across * 2 + Math.sin(phase * 3 + seed) * 0.55);
+      const broad = Math.sin(phase * 7 + Math.sin(phase * 2 + across) * 0.9 + warp * 0.08);
+      const grain = Math.sin(phase * 27 + warp + Math.sin(across * 3 + seed) * 0.7);
+      const fine = Math.sin(phase * 71 + warp * 1.6 + Math.sin(across * 5 + seed) * 1.2);
+      const streak = Math.max(0, Math.sin(phase * 119 + warp * 2.1 + Math.sin(across * 7) * 1.8) - 0.94);
+      const variation = (broad * 0.28 + grain * 0.2 + fine * 0.09 + (seededTextureNoise(x, y, seed) - 0.5) * 0.08);
+      const tone = clamp(0.51 + variation * 0.3 - streak * 0.16);
+      const shade = 0.97 + variation * 0.045;
+      const offset = (y * size + x) * 4;
+      image.data[offset] = THREE.MathUtils.clamp(THREE.MathUtils.lerp(dark[0], light[0], tone) * shade, 0, 255);
+      image.data[offset + 1] = THREE.MathUtils.clamp(THREE.MathUtils.lerp(dark[1], light[1], tone) * shade, 0, 255);
+      image.data[offset + 2] = THREE.MathUtils.clamp(THREE.MathUtils.lerp(dark[2], light[2], tone) * shade, 0, 255);
+      image.data[offset + 3] = 255;
+    }
+  }
+
+  context.putImageData(image, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.name = 'Procedural warm birch grain';
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+  texture.anisotropy = Math.min(anisotropy, 8);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function seededTextureNoise(x, y, seed) {
+  const value = Math.sin((x + seed) * 127.1 + (y + seed * 3) * 311.7) * 43758.5453123;
+  return value - Math.floor(value);
 }
