@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 
 const MODEL_URL = '/models/studio.glb';
 const WORK_IDS = new Set(['printer', 'game-board', 'computer', 'video', 'architecture']);
@@ -58,13 +62,78 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   const pointer = new THREE.Vector2();
   const interactive = [];
   const workRoots = new Map();
+  const workBaseY = new Map();
+  const workLift = new Map();
   let viewChangeHandler = null;
+  let composer = null;
+  let outlinePass = null;
   let animationFrame = 0;
+  let hoverFrame = 0;
+  let hoveredWorkId = null;
+  let lastHoverFrameAt = 0;
+  let pressed = null;
   let activeMotion = false;
   let rememberedView = null;
   let motionResolve = null;
 
-  const render = () => renderer.render(scene, camera);
+  const render = () => {
+    if (outlinePass?.selectedObjects.length) composer.render();
+    else renderer.render(scene, camera);
+  };
+
+  function prepareOutlinePass() {
+    if (composer) return;
+    composer = new EffectComposer(renderer);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    composer.setSize(canvas.clientWidth, canvas.clientHeight);
+    composer.addPass(new RenderPass(scene, camera));
+    outlinePass = new OutlinePass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), scene, camera);
+    outlinePass.visibleEdgeColor.set('#fff0c5');
+    outlinePass.hiddenEdgeColor.setRGB(0, 0, 0);
+    outlinePass.edgeStrength = 2.25;
+    outlinePass.edgeThickness = 1.25;
+    outlinePass.edgeGlow = 0.2;
+    composer.addPass(outlinePass);
+    composer.addPass(new OutputPass());
+  }
+
+  function setHoveredWork(id) {
+    const nextId = id && workRoots.has(id) ? id : null;
+    if (hoveredWorkId === nextId) return;
+    hoveredWorkId = nextId;
+    if (hoveredWorkId) {
+      prepareOutlinePass();
+      outlinePass.selectedObjects = [workRoots.get(hoveredWorkId)];
+    } else if (outlinePass) {
+      outlinePass.selectedObjects = [];
+    }
+    if (!hoverFrame) {
+      lastHoverFrameAt = performance.now();
+      hoverFrame = requestAnimationFrame(animateWorkLift);
+    }
+    render();
+  }
+
+  function animateWorkLift(now) {
+    const delta = Math.min((now - lastHoverFrameAt) / 1000, 0.05);
+    lastHoverFrameAt = now;
+    const blend = 1 - Math.exp(-delta / 0.065);
+    let moving = false;
+    for (const [id, root] of workRoots) {
+      const baseY = workBaseY.get(id) ?? root.position.y;
+      const targetY = baseY + (id === hoveredWorkId ? workLift.get(id) ?? 0 : 0);
+      const difference = targetY - root.position.y;
+      if (Math.abs(difference) < 0.0008) root.position.y = targetY;
+      else {
+        root.position.y += difference * blend;
+        moving = true;
+      }
+    }
+    render();
+    if (moving) hoverFrame = requestAnimationFrame(animateWorkLift);
+    else hoverFrame = 0;
+  }
+
   controls.addEventListener('change', render);
   render();
 
@@ -77,6 +146,10 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, portrait ? 1.45 : 1.7));
     renderer.setSize(clientWidth, clientHeight, false);
+    if (composer) {
+      composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+      composer.setSize(clientWidth, clientHeight);
+    }
     render();
   });
   resize.observe(canvas);
@@ -108,6 +181,12 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
         }
       }
       scene.updateMatrixWorld(true);
+      for (const [id, root] of workRoots) {
+        workBaseY.set(id, root.position.y);
+        const bounds = new THREE.Box3().setFromObject(root);
+        const height = bounds.getSize(new THREE.Vector3()).y;
+        workLift.set(id, THREE.MathUtils.clamp(height * 0.06, 0.04, 0.095));
+      }
       render();
       onLoaded({ scene: model, workRoots, controls, camera });
     },
@@ -203,8 +282,11 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
 
   canvas.addEventListener('pointermove', (event) => {
     if (activeMotion || interactive.length === 0) return;
-    const first = hitsAt(event)[0];
+    const dragging = pressed && Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > 6;
+    const pointerCanHover = event.pointerType !== 'touch' && !dragging;
+    const first = pointerCanHover ? hitsAt(event)[0] : null;
     const id = first ? resolveWork(first.object) : null;
+    setHoveredWork(id);
     canvas.style.cursor = id ? 'pointer' : 'grab';
     const rect = canvas.getBoundingClientRect();
     const point = id ? { x: event.clientX - rect.left, y: event.clientY - rect.top, width: rect.width, height: rect.height } : null;
@@ -212,7 +294,6 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     if (viewChangeHandler) viewChangeHandler(id, point);
   });
 
-  let pressed = null;
   canvas.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     pressed = { x: event.clientX, y: event.clientY, id: event.pointerId };
@@ -225,10 +306,15 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     if (travel > 6 || activeMotion) return;
     const first = hitsAt(event)[0];
     const id = first ? resolveWork(first.object) : null;
-    if (id) onSelect(id, { source: 'canvas' });
+    if (id) {
+      setHoveredWork(null);
+      if (onHover) onHover(null, null);
+      onSelect(id, { source: 'canvas' });
+    }
   });
   canvas.addEventListener('pointerleave', () => {
     canvas.style.cursor = 'grab';
+    setHoveredWork(null);
     if (onHover) onHover(null, null);
     if (viewChangeHandler) viewChangeHandler(null, null);
   });
@@ -259,9 +345,12 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     render,
     dispose() {
       cancelAnimationFrame(animationFrame);
+      cancelAnimationFrame(hoverFrame);
       resize.disconnect();
       controls.dispose();
       draco.dispose();
+      if (outlinePass) outlinePass.dispose();
+      if (composer) composer.dispose();
       renderer.dispose();
       scene.traverse((node) => {
         if (node.geometry) node.geometry.dispose();
