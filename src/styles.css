@@ -110,6 +110,8 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .media-stage { position: relative; display: grid; min-width: 0; min-height: 270px; place-items: center; overflow: hidden; border: 1px solid rgba(42, 57, 47, .09); border-radius: 18px; background: #e7e4dc; }
 .stage-image, .stage-video, .stage-model, .stage-pdf { display: block; width: 100%; height: 100%; min-height: 0; border: 0; object-fit: contain; }
 .stage-model:focus-visible { outline: 3px solid var(--red); outline-offset: -3px; }
+.model-status { position: absolute; top: 50%; left: 50%; z-index: 1; max-width: calc(100% - 32px); padding: 9px 13px; border: 1px solid rgba(255, 255, 255, .58); border-radius: 999px; background: rgba(250, 248, 239, .9); color: #48564c; font-size: 13px; text-align: center; transform: translate(-50%, -50%); backdrop-filter: blur(8px); }
+.model-status.is-error { border-color: rgba(207, 76, 56, .24); color: #914a3b; }
 .resume-zoom-trigger { position: relative; display: grid; width: 100%; height: 100%; min-height: 0; place-items: center; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
 .resume-zoom-trigger .stage-image { transition: transform .2s ease; }
 .resume-zoom-trigger:hover .stage-image { transform: scale(1.015); }

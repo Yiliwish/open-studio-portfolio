@@ -198,9 +198,9 @@ function renderMediaGallery(media) {
     button.type = 'button';
     button.setAttribute('aria-pressed', String(index === activeMediaIndex));
     button.setAttribute('aria-label', `查看${item.label}`);
-    if (item.type === 'image' || item.type === 'video') {
+    if (item.type === 'image' || item.type === 'video' || (item.type === 'model' && item.poster)) {
       const image = makeElement('img', 'thumb-image');
-      image.src = item.type === 'video' ? item.poster : item.src;
+      image.src = item.type === 'image' ? item.src : item.poster;
       image.alt = '';
       image.loading = 'lazy';
       image.decoding = 'async';
@@ -302,8 +302,11 @@ function renderMedia(item) {
     const canvas = makeElement('canvas', 'stage-model');
     canvas.tabIndex = 0;
     canvas.setAttribute('aria-label', `${item.alt || item.label}；拖动旋转，滚轮缩放；方向键旋转，加减号缩放`);
-    mediaStage.append(canvas, makeElement('span', 'stage-caption', '拖动旋转 · 滚轮缩放'));
-    mountModelViewer(canvas, item);
+    const status = makeElement('span', 'model-status', '正在载入 3D 模型…');
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    mediaStage.append(canvas, status, makeElement('span', 'stage-caption', '拖动旋转 · 滚轮缩放'));
+    mountModelViewer(canvas, item, status);
     return;
   }
 
@@ -323,10 +326,17 @@ function renderMedia(item) {
   }
 }
 
-async function mountModelViewer(canvas, item) {
+async function mountModelViewer(canvas, item, status) {
   const revision = mediaRevision;
   const isGlb = item.src.toLowerCase().endsWith('.glb');
-  const viewer = { frame: 0, observer: null, controls: null, renderer: null, model: null };
+  const showModelError = () => {
+    if (status.isConnected) {
+      status.textContent = '模型暂时无法载入，请切换其他预览。';
+      status.classList.add('is-error');
+    }
+    showToast('3D 模型暂时无法载入，可继续浏览其他图片。');
+  };
+  const viewer = { frame: 0, observer: null, controls: null, renderer: null, dracoLoader: null, model: null };
   activeModelViewer = viewer;
   const disposeModel = (object) => {
     object?.traverse((node) => {
@@ -343,16 +353,18 @@ async function mountModelViewer(canvas, item) {
     cancelAnimationFrame(viewer.frame);
     viewer.observer?.disconnect();
     viewer.controls?.dispose();
+    viewer.dracoLoader?.dispose();
     disposeModel(viewer.model);
     viewer.renderer?.dispose();
   };
   viewer.dispose = dispose;
 
   try {
-    const [THREE, { OrbitControls }, loaderModule] = await Promise.all([
+    const [THREE, { OrbitControls }, loaderModule, dracoModule] = await Promise.all([
       import('three').then((module) => module),
       import('three/addons/controls/OrbitControls.js'),
       isGlb ? import('three/addons/loaders/GLTFLoader.js') : import('three/addons/loaders/STLLoader.js'),
+      isGlb ? import('three/addons/loaders/DRACOLoader.js') : Promise.resolve(null),
     ]);
     if (revision !== mediaRevision || !canvas.isConnected) return;
 
@@ -368,7 +380,6 @@ async function mountModelViewer(canvas, item) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(36, 1, 0.01, 100);
-    camera.position.set(3.4, 2.4, 4.5);
     scene.add(new THREE.HemisphereLight('#fffdf6', '#908b7f', isGlb ? 1.5 : 2.1));
     const key = new THREE.DirectionalLight('#fff7e8', isGlb ? 1.8 : 2.3);
     key.position.set(3, 5, 4);
@@ -380,8 +391,8 @@ async function mountModelViewer(canvas, item) {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.065;
-    controls.minDistance = 1.6;
-    controls.maxDistance = 14;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 40;
     controls.enablePan = false;
     controls.target.set(0, 0, 0);
     viewer.controls = controls;
@@ -410,6 +421,13 @@ async function mountModelViewer(canvas, item) {
     resize();
 
     const loader = isGlb ? new loaderModule.GLTFLoader() : new loaderModule.STLLoader();
+    if (isGlb && dracoModule) {
+      const dracoLoader = new dracoModule.DRACOLoader();
+      dracoLoader.setDecoderPath('/draco/');
+      loader.setDRACOLoader(dracoLoader);
+      viewer.dracoLoader = dracoLoader;
+    }
+    let lastProgress = -10;
     loader.load(item.src, (loaded) => {
       const content = isGlb ? loaded.scene : new THREE.Mesh(
         loaded,
@@ -428,17 +446,41 @@ async function mountModelViewer(canvas, item) {
       const bounds = new THREE.Box3().setFromObject(content);
       const size = bounds.getSize(new THREE.Vector3());
       const center = bounds.getCenter(new THREE.Vector3());
-      const scale = (isGlb ? 3.3 : 2.5) / Math.max(size.x, size.y, size.z, 0.001);
+      const scale = (isGlb ? 3 : 2.5) / Math.max(size.x, size.y, size.z, 0.001);
+      const sourceCamera = isGlb ? loaded.cameras?.[0] : null;
       const model = new THREE.Group();
       model.add(content);
       model.scale.setScalar(scale);
       model.position.copy(center).multiplyScalar(-scale);
       scene.add(model);
       viewer.model = model;
-      camera.position.set(3.4, 2.4, 4.5);
+      model.updateMatrixWorld(true);
       controls.target.set(0, 0, 0);
+      const normalizedSize = size.multiplyScalar(scale);
+      const radius = normalizedSize.length() * 0.5;
+      const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov * 0.5) * Math.max(camera.aspect, 0.1));
+      const limitingFov = Math.min(verticalFov, horizontalFov);
+      const distance = (radius / Math.sin(limitingFov * 0.5)) * 1.16;
+      camera.near = Math.max(distance / 1000, 0.001);
+      camera.far = Math.max(distance * 40, 100);
+      const viewDirection = sourceCamera?.getWorldDirection(new THREE.Vector3()).normalize()
+        ?? new THREE.Vector3(-0.55, -0.34, -0.76).normalize();
+      camera.position.copy(viewDirection).multiplyScalar(-distance);
+      camera.updateProjectionMatrix();
+      controls.minDistance = Math.max(radius * 0.65, 0.08);
+      controls.maxDistance = Math.max(distance * 3, controls.minDistance * 4);
       controls.update();
-    }, undefined, () => showToast('3D 模型暂时无法载入，可继续浏览其他图片。'));
+      status.remove();
+    }, (event) => {
+      if (event.lengthComputable && status.isConnected) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        if (progress >= lastProgress + 10 || progress === 100) {
+          lastProgress = progress;
+          status.textContent = `正在载入 3D 模型 ${progress}%`;
+        }
+      }
+    }, showModelError);
 
     const draw = () => {
       if (revision !== mediaRevision) return;
@@ -449,7 +491,7 @@ async function mountModelViewer(canvas, item) {
     draw();
   } catch (error) {
     console.error('Unable to load the model viewer.', error);
-    if (revision === mediaRevision) showToast('3D 模型暂时无法载入，可继续浏览其他图片。');
+    if (revision === mediaRevision) showModelError();
   }
 }
 

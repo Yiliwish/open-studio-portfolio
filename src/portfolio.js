@@ -67,8 +67,9 @@ export const works = [
           { title: '游戏验证', text: '在运行场景中观察模型比例、可读性和行走路线。' },
         ],
         tags: ['第三人称探索', '神殿场景', 'Windows Demo'],
-        note: '目前提供 Windows 安装包与实机演示录像；网页内暂不直接运行游戏。',
+        note: '可在详情页旋转、缩放神殿场景模型；Windows Demo 与实机录像用于查看游戏中的实际效果。',
         media: [
+          { type: 'model', src: '/models/sanctuary-scene.glb', poster: '/works/game/sanctuary-temple.webp', label: '旋转查看神殿场景', alt: 'Sanctuary 神殿场景三维模型，可拖动旋转并缩放查看' },
           { type: 'image', src: '/works/game/sanctuary-ritual.webp', label: '神殿路线与交互', alt: 'Sanctuary 游戏中的神殿地面路线和玩家角色' },
           { type: 'image', src: '/works/game/sanctuary-temple.webp', label: '神像祭坛场景', alt: 'Sanctuary 游戏中的神像祭坛与室内建筑' },
           { type: 'video', src: '/works/game/sanctuary-walkthrough.mp4', poster: '/works/game/sanctuary-ritual.webp', label: '实机游览录像', alt: 'Sanctuary 游戏场景演示录像' },
@@ -123,9 +124,10 @@ export const works = [
           { title: '成片呈现', text: '通过完整视频和运镜片段对比最终画面效果。' },
         ],
         tags: ['AI 角色', '动态影像', '镜头表现'],
-        note: '视频在点击播放后才开始加载。',
+        note: '舞台场景模型可旋转、缩放查看；视频在点击播放后才开始加载。',
         media: [
           { type: 'image', src: '/works/video/dancer-turnaround.webp', label: '角色多视角设定', alt: '国风舞者角色的正面、侧面和背面造型' },
+          { type: 'model', src: '/models/dance-environment.glb', poster: '/works/video/dancer-turnaround.webp', label: '旋转查看大佛舞台场景', alt: '乐山大佛舞蹈场景三维模型，可拖动旋转并缩放查看' },
           { type: 'video', src: '/works/video/dance-film.mp4', poster: '/works/video/dance-film-poster.webp', label: '国风独舞成片', alt: '大佛前国风独舞 AI 视频' },
           { type: 'video', src: '/works/video/dance-camera.mp4', poster: '/works/video/dance-camera-poster.webp', label: '运镜片段', alt: '乐山大佛场景中的红衣舞者运镜视频' },
         ],
