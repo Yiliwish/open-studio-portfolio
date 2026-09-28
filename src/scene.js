@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -181,6 +183,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
       const model = gltf.scene;
       restoreWoodMaterials(model, renderer.capabilities.getMaxAnisotropy());
       scene.add(model);
+      loadWallTitle();
       model.traverse((node) => {
         if (node.isMesh) {
           node.castShadow = true;
@@ -222,6 +225,20 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
     return raycaster.intersectObjects(interactive, true);
+  }
+
+  function loadWallTitle() {
+    const loader = new FontLoader();
+    loader.load(
+      '/fonts/helvetiker_bold.typeface.json',
+      (font) => {
+        const title = createWallTitle(font);
+        scene.add(title);
+        render();
+      },
+      undefined,
+      (error) => console.error('Unable to load the studio title font.', error),
+    );
   }
 
   function resolveWork(object) {
@@ -466,4 +483,131 @@ function createWoodGrainTexture({ dark, light, seed }, anisotropy) {
 function seededTextureNoise(x, y, seed) {
   const value = Math.sin((x + seed) * 127.1 + (y + seed * 3) * 311.7) * 43758.5453123;
   return value - Math.floor(value);
+}
+
+function createWallTitle(font) {
+  const title = new THREE.Group();
+  title.name = 'Scene title: AI＋3D＝？';
+  title.userData.displayText = 'AI＋3D＝？';
+
+  const material = new THREE.MeshStandardMaterial({
+    color: '#fffaf2',
+    roughness: 0.7,
+    metalness: 0,
+    emissive: '#32150d',
+    emissiveIntensity: 0.12,
+  });
+  const size = 0.5;
+  const depth = 0.035;
+  const gap = 0.1;
+  let cursor = 0;
+
+  const addText = (text, scaleX = 1) => {
+    const geometry = new TextGeometry(text, {
+      font,
+      size,
+      depth,
+      curveSegments: 8,
+      bevelEnabled: true,
+      bevelThickness: 0.004,
+      bevelSize: 0.005,
+      bevelSegments: 2,
+    });
+    geometry.computeBoundingBox();
+    const bounds = geometry.boundingBox;
+    const width = bounds.getSize(new THREE.Vector3()).x * scaleX;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(cursor - bounds.min.x * scaleX, -bounds.min.y, 0);
+    mesh.scale.x = scaleX;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    title.add(mesh);
+    cursor += width + gap;
+  };
+
+  const addExtrudedShape = (points) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i += 1) shape.lineTo(points[i][0], points[i][1]);
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, {
+      depth,
+      bevelEnabled: true,
+      bevelThickness: 0.004,
+      bevelSize: 0.004,
+      bevelSegments: 2,
+      curveSegments: 2,
+    });
+  };
+
+  const addOperatorMesh = (geometry, width, y = size * 0.5) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(cursor + width * 0.5, y, 0);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    title.add(mesh);
+    cursor += width + gap;
+  };
+
+  addText('AI');
+
+  const plusWidth = 0.34;
+  const plusHeight = 0.34;
+  const plusStroke = 0.045;
+  const halfWidth = plusWidth * 0.5;
+  const halfHeight = plusHeight * 0.5;
+  const halfStroke = plusStroke * 0.5;
+  const plusPoints = [
+    [-halfStroke, -halfHeight], [halfStroke, -halfHeight],
+    [halfStroke, -halfStroke], [halfWidth, -halfStroke],
+    [halfWidth, halfStroke], [halfStroke, halfStroke],
+    [halfStroke, halfHeight], [-halfStroke, halfHeight],
+    [-halfStroke, halfStroke], [-halfWidth, halfStroke],
+    [-halfWidth, -halfStroke], [-halfStroke, -halfStroke],
+  ];
+  addOperatorMesh(addExtrudedShape(plusPoints), plusWidth, size * 0.52);
+
+  addText('3D');
+
+  const equalsWidth = 0.38;
+  const equalsBar = 0.044;
+  const equalsGap = 0.09;
+  const equals = new THREE.Group();
+  for (const y of [size * 0.43 - equalsGap * 0.5, size * 0.43 + equalsGap * 0.5]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(equalsWidth, equalsBar, depth), material);
+    bar.position.set(0, y, depth * 0.5);
+    bar.castShadow = true;
+    bar.receiveShadow = true;
+    equals.add(bar);
+  }
+  equals.position.x = cursor + equalsWidth * 0.5;
+  title.add(equals);
+  cursor += equalsWidth + gap;
+
+  const questionGeometry = new TextGeometry('?', {
+    font,
+    size,
+    depth,
+    curveSegments: 8,
+    bevelEnabled: true,
+    bevelThickness: 0.004,
+    bevelSize: 0.005,
+    bevelSegments: 2,
+  });
+  questionGeometry.computeBoundingBox();
+  const questionBounds = questionGeometry.boundingBox;
+  const questionWidth = 0.4;
+  const questionScaleX = questionWidth / questionBounds.getSize(new THREE.Vector3()).x;
+  const questionMark = new THREE.Mesh(questionGeometry, material);
+  questionMark.position.set(cursor - questionBounds.min.x * questionScaleX, -questionBounds.min.y, 0);
+  questionMark.scale.x = questionScaleX;
+  questionMark.castShadow = true;
+  questionMark.receiveShadow = true;
+  title.add(questionMark);
+  cursor += questionWidth;
+
+  const titleWidth = cursor - gap;
+  title.scale.x = 1.32;
+  title.position.set(-titleWidth * title.scale.x * 0.5, 2.7, -5.48);
+  return title;
 }
