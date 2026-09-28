@@ -127,7 +127,7 @@ export const works = [
         note: '舞台场景模型可旋转、缩放查看；视频在点击播放后才开始加载。',
         media: [
           { type: 'image', src: '/works/video/dancer-turnaround.webp', label: '角色多视角设定', alt: '国风舞者角色的正面、侧面和背面造型' },
-          { type: 'model', src: '/models/dance-environment.glb', poster: '/works/video/dancer-turnaround.webp', label: '旋转查看大佛舞台场景', alt: '乐山大佛舞蹈场景三维模型，可拖动旋转并缩放查看' },
+          { type: 'model', src: '/models/dance-environment.glb', poster: '/works/video/dance-environment-poster.webp', label: '旋转查看大佛舞台场景', alt: '乐山大佛舞蹈场景三维模型，可拖动旋转并缩放查看' },
           { type: 'video', src: '/works/video/dance-film.mp4', poster: '/works/video/dance-film-poster.webp', label: '国风独舞成片', alt: '大佛前国风独舞 AI 视频' },
           { type: 'video', src: '/works/video/dance-camera.mp4', poster: '/works/video/dance-camera-poster.webp', label: '运镜片段', alt: '乐山大佛场景中的红衣舞者运镜视频' },
         ],
