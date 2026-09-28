@@ -28,6 +28,18 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 #studio-canvas:active { cursor: grabbing; }
 .work-tooltip { position: absolute; z-index: 2; top: 0; left: 0; display: flex; min-width: 170px; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid rgba(53, 71, 55, .16); border-radius: 14px; background: rgba(250, 248, 239, .94); box-shadow: 0 9px 26px rgba(38, 53, 42, .14); opacity: 0; visibility: hidden; transform: translate3d(var(--tooltip-x, 0), var(--tooltip-y, 0), 0) translate(9px, 9px) scale(.98); transition: opacity .16s ease, transform .16s ease, visibility .16s; backdrop-filter: blur(13px); pointer-events: none; }
 .work-tooltip.visible { opacity: 1; visibility: visible; transform: translate3d(var(--tooltip-x, 0), var(--tooltip-y, 0), 0) translate(9px, 9px) scale(1); }
+.scene-work-labels { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.scene-work-labels[hidden], .scene-work-label[hidden] { display: none; }
+.scene-work-label { position: absolute; display: flex; width: 108px; height: 34px; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border: 1px solid rgba(67, 82, 65, .26); border-radius: 999px; background: rgba(251, 249, 241, .94); box-shadow: 0 4px 18px rgba(35, 51, 39, .12); color: #293c31; cursor: pointer; opacity: 1; pointer-events: auto; transform: translate(-50%, -100%); transition: opacity .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease; backdrop-filter: blur(10px); }
+.scene-work-label::after { position: absolute; top: calc(100% + 4px); left: 50%; width: 1px; height: var(--leader-length, 10px); background: linear-gradient(rgba(86, 103, 79, .5), rgba(86, 103, 79, .05)); content: ''; pointer-events: none; transform: rotate(var(--leader-angle, 0rad)); transform-origin: top center; }
+.scene-work-label.is-below::after { top: auto; bottom: calc(100% + 4px); transform-origin: bottom center; }
+.scene-work-label:hover, .scene-work-label.hovered, .scene-work-label:focus-visible { border-color: rgba(186, 101, 73, .68); background: #fffdf5; box-shadow: 0 5px 22px rgba(54, 70, 48, .18), 0 0 0 3px rgba(255, 242, 211, .45); transform: translate(-50%, calc(-100% - 3px)); }
+.scene-work-label:focus-visible { outline: 2px solid #a84f3e; outline-offset: 3px; }
+.scene-work-label.active { border-color: #c1694a; background: #fff6e9; }
+.scene-work-index { color: #b35b45; font-family: Consolas, monospace; font-size: 10px; font-weight: 700; }
+.scene-work-name { overflow: hidden; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.scene-work-labels[data-mode="focusing"] .scene-work-label:not(.active), .scene-work-labels[data-mode="details"] .scene-work-label, .scene-work-labels[data-mode="returning"] .scene-work-label { opacity: 0; pointer-events: none; }
+.scene-work-labels[data-mode="focusing"] .scene-work-label { pointer-events: none; }
 .tooltip-number { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: rgba(88, 116, 88, .12); color: #667962; font-family: Consolas, monospace; font-size: 11px; }
 .tooltip-copy { display: grid; min-width: 0; gap: 3px; }
 .tooltip-copy strong { overflow: hidden; color: #33443a; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
@@ -182,6 +194,9 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }
 
 @media (max-width: 760px) {
+  .scene-work-label { width: 44px; height: 44px; padding: 0; }
+  .scene-work-name { display: none; }
+  .scene-work-index { font-size: 11px; }
   .masthead { top: max(15px, env(safe-area-inset-top)); right: max(15px, env(safe-area-inset-right)); left: max(16px, env(safe-area-inset-left)); }
   .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
   .brand-copy strong { font-size: 11px; }

@@ -39,7 +39,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   const getPixelRatio = () => Math.min(window.devicePixelRatio || 1, pixelRatioLimit());
   renderer.setPixelRatio(getPixelRatio());
 
-  scene.add(new THREE.HemisphereLight(0xf4f8ff, 0x82775e, 2.2));
+  const ambientLight = new THREE.HemisphereLight(0xf4f8ff, 0x82775e, 2.2);
+  scene.add(ambientLight);
   const sunlight = new THREE.DirectionalLight(0xffedcf, 1.2);
   sunlight.position.set(-7, 12, 10);
   sunlight.castShadow = true;
@@ -58,6 +59,34 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   const softFill = new THREE.DirectionalLight(0xf0f4e8, 0.62);
   softFill.position.set(8, 5, 2);
   scene.add(softFill);
+
+  const focusSpotlight = new THREE.SpotLight(0xffefd3, 0, 0, 0.42, 0.9, 2);
+  focusSpotlight.castShadow = false;
+  focusSpotlight.visible = false;
+  scene.add(focusSpotlight, focusSpotlight.target);
+  const beamMaterial = new THREE.ShaderMaterial({
+    uniforms: { opacity: { value: 0 } },
+    vertexShader: `varying float vHeight;
+      void main() {
+        vHeight = position.y + 0.5;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `uniform float opacity;
+      varying float vHeight;
+      void main() {
+        float edgeFade = smoothstep(0.0, 0.18, vHeight) * (1.0 - smoothstep(0.72, 1.0, vHeight));
+        gl_FragColor = vec4(1.0, 0.92, 0.76, opacity * edgeFade);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const focusBeam = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 32, 1, true), beamMaterial);
+  focusBeam.visible = false;
+  focusBeam.frustumCulled = false;
+  scene.add(focusBeam);
+  const overviewLighting = { ambient: 2.2, sun: 1.2, fill: 0.62, spot: 0, beam: 0 };
+  const selectedLighting = { ambient: 1.78, sun: 0.91, fill: 0.45, spot: 19, beam: 0.095 };
 
   const controls = new OrbitControls(camera, canvas);
   controls.target.copy(homeTarget);
@@ -81,6 +110,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   const workBaseY = new Map();
   const workLift = new Map();
   let viewChangeHandler = null;
+  let labelUpdateHandler = null;
   let composer = null;
   let outlinePass = null;
   let animationFrame = 0;
@@ -92,7 +122,46 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   let rememberedView = null;
   let motionResolve = null;
 
-  const render = () => composer.render();
+  const render = () => {
+    composer.render();
+    if (labelUpdateHandler && workRoots.size) labelUpdateHandler(projectWorkLabels());
+  };
+
+  function projectWorkLabels() {
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    const points = [];
+    for (const [id, root] of workRoots) {
+      const bounds = new THREE.Box3().setFromObject(root);
+      if (bounds.isEmpty()) continue;
+      const size = bounds.getSize(new THREE.Vector3());
+      const point = bounds.getCenter(new THREE.Vector3());
+      point.y = bounds.min.y + size.y * 0.45;
+      point.project(camera);
+      points.push({
+        id,
+        x: (point.x * 0.5 + 0.5) * canvas.clientWidth,
+        y: (0.5 - point.y * 0.5) * canvas.clientHeight,
+        visible: point.z > -1 && point.z < 1 && point.x > -1.1 && point.x < 1.1,
+      });
+    }
+    return points;
+  }
+
+  function focusLightPose(root) {
+    const bounds = new THREE.Box3().setFromObject(root);
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const beamHeight = Math.max(2.7, Math.min(4.2, size.y + 2.6));
+    const radius = THREE.MathUtils.clamp(Math.max(size.x, size.z) * 0.78, 0.48, 1.3);
+    const bottom = bounds.min.y + size.y * 0.2;
+    return {
+      spotPosition: new THREE.Vector3(center.x, bottom + beamHeight, center.z + 0.15),
+      spotTarget: center.clone(),
+      beamPosition: new THREE.Vector3(center.x, bottom + beamHeight * 0.5, center.z + 0.15),
+      beamScale: new THREE.Vector3(radius, beamHeight, radius),
+    };
+  }
 
   function prepareOutlinePass() {
     if (composer) return;
@@ -254,7 +323,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     return null;
   }
 
-  function animateView(position, target, done) {
+  function animateView(position, target, done, focusId = null) {
     cancelAnimationFrame(animationFrame);
     if (motionResolve) {
       const resolvePrevious = motionResolve;
@@ -267,6 +336,30 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     const fromPosition = camera.position.clone();
     const fromTarget = controls.target.clone();
     const startedAt = performance.now();
+    const lightFrom = {
+      ambient: ambientLight.intensity,
+      sun: sunlight.intensity,
+      fill: softFill.intensity,
+      spot: focusSpotlight.intensity,
+      beam: beamMaterial.uniforms.opacity.value,
+    };
+    const lightTo = focusId ? selectedLighting : overviewLighting;
+    const root = focusId ? workRoots.get(focusId) : null;
+    const pose = root ? focusLightPose(root) : null;
+    const fromSpotPosition = focusSpotlight.position.clone();
+    const fromSpotTarget = focusSpotlight.target.position.clone();
+    const fromBeamPosition = focusBeam.position.clone();
+    const fromBeamScale = focusBeam.scale.clone();
+    if (pose) {
+      focusSpotlight.visible = true;
+      focusBeam.visible = true;
+      if (lightFrom.spot === 0) {
+        focusSpotlight.position.copy(pose.spotPosition);
+        focusSpotlight.target.position.copy(pose.spotTarget);
+        focusBeam.position.copy(pose.beamPosition);
+        focusBeam.scale.copy(pose.beamScale);
+      }
+    }
     // The camera move explains where a work sits in the studio. Keep that
     // orientation cue visible even when the browser requests less motion.
     const duration = reduceMotion ? 850 : 1150;
@@ -275,11 +368,29 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
       const frame = (now) => {
         const t = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
         const eased = t * t * (3 - 2 * t);
+        const lightT = Math.min(1, (now - startedAt) / (reduceMotion ? 120 : 380));
+        const lightEased = lightT * lightT * (3 - 2 * lightT);
+        ambientLight.intensity = THREE.MathUtils.lerp(lightFrom.ambient, lightTo.ambient, lightEased);
+        sunlight.intensity = THREE.MathUtils.lerp(lightFrom.sun, lightTo.sun, lightEased);
+        softFill.intensity = THREE.MathUtils.lerp(lightFrom.fill, lightTo.fill, lightEased);
+        focusSpotlight.intensity = THREE.MathUtils.lerp(lightFrom.spot, lightTo.spot, lightEased);
+        beamMaterial.uniforms.opacity.value = THREE.MathUtils.lerp(lightFrom.beam, lightTo.beam, lightEased);
+        if (pose && lightFrom.spot > 0) {
+          focusSpotlight.position.lerpVectors(fromSpotPosition, pose.spotPosition, lightEased);
+          focusSpotlight.target.position.lerpVectors(fromSpotTarget, pose.spotTarget, lightEased);
+          focusBeam.position.lerpVectors(fromBeamPosition, pose.beamPosition, lightEased);
+          focusBeam.scale.lerpVectors(fromBeamScale, pose.beamScale, lightEased);
+        }
+        focusSpotlight.target.updateMatrixWorld();
         camera.position.lerpVectors(fromPosition, position, eased);
         controls.target.lerpVectors(fromTarget, target, eased);
         controls.update();
         if (t < 1) animationFrame = requestAnimationFrame(frame);
         else {
+          if (!focusId) {
+            focusSpotlight.visible = false;
+            focusBeam.visible = false;
+          }
           activeMotion = false;
           controls.enabled = true;
           if (motionResolve === resolve) motionResolve = null;
@@ -308,7 +419,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     nextPosition.z = Math.max(nextPosition.z, 4.4);
     const nextTarget = center.clone().add(new THREE.Vector3(0, height * 0.1, 0));
     controls.minDistance = 2.2;
-    return animateView(nextPosition, nextTarget);
+    return animateView(nextPosition, nextTarget, null, id);
   }
 
   function returnToOverview() {
@@ -368,6 +479,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     workRoots,
     controls,
     camera,
+    setHoveredWork,
+    setLabelUpdateHandler(handler) { labelUpdateHandler = handler; render(); },
     focusWork,
     returnToOverview,
     setViewChangeHandler(handler) { viewChangeHandler = handler; },

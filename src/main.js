@@ -11,6 +11,7 @@ const loadingBar = $('#loading-bar');
 const loadingPercent = $('#loading-percent');
 const dialog = $('#work-dialog');
 const list = $('#work-list');
+const sceneLabels = $('#scene-work-labels');
 const toast = $('#toast');
 const status = $('#scene-status');
 const tooltip = $('#work-tooltip');
@@ -32,6 +33,97 @@ let activePartIndex = 0;
 let activeMediaIndex = 0;
 let mediaRevision = 0;
 let activeModelViewer = null;
+const labelButtons = new Map();
+const compactNames = { printer: '3D 打印', 'game-board': '游戏 Demo', computer: '个人简历', video: '视频 / 漫剧', architecture: '建筑项目' };
+
+function highlightWork(id) {
+  for (const chip of list.querySelectorAll('.work-chip')) chip.classList.toggle('hovered', chip.dataset.workId === id);
+  for (const button of labelButtons.values()) button.classList.toggle('hovered', button.dataset.workId === id);
+}
+
+function setLabelMode(mode) {
+  sceneLabels.dataset.mode = mode;
+  sceneLabels.inert = mode !== 'overview';
+}
+
+function createSceneLabels(workRoots) {
+  for (const [index, work] of works.entries()) {
+    if (!workRoots.has(work.id)) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'scene-work-label';
+    button.dataset.workId = work.id;
+    button.setAttribute('aria-label', `查看作品 ${String(index + 1).padStart(2, '0')}：${work.title}`);
+    button.innerHTML = `<span class="scene-work-index">${String(index + 1).padStart(2, '0')}</span><span class="scene-work-name">${compactNames[work.id]}</span>`;
+    button.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'touch' || browsingState !== 'overview') return;
+      studio?.setHoveredWork(work.id);
+      highlightWork(work.id);
+      hideTooltip();
+    });
+    button.addEventListener('pointerleave', () => {
+      if (browsingState !== 'overview') return;
+      studio?.setHoveredWork(null);
+      highlightWork(null);
+    });
+    button.addEventListener('focus', () => {
+      if (browsingState !== 'overview') return;
+      studio?.setHoveredWork(work.id);
+      highlightWork(work.id);
+    });
+    button.addEventListener('blur', () => {
+      studio?.setHoveredWork(null);
+      highlightWork(null);
+    });
+    button.addEventListener('click', () => openWork(work.id, button));
+    labelButtons.set(work.id, button);
+    sceneLabels.append(button);
+  }
+  sceneLabels.hidden = false;
+  setLabelMode('overview');
+}
+
+function updateSceneLabels(points) {
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const compact = width <= 760;
+  const labelWidth = compact ? 44 : 108;
+  const labelHeight = compact ? 44 : 34;
+  const visible = points.filter((point) => point.visible && point.y >= 72 && point.y <= height - 90 && labelButtons.has(point.id)).sort((a, b) => a.x - b.x);
+  for (const point of points) {
+    const button = labelButtons.get(point.id);
+    if (button) button.hidden = !visible.includes(point);
+  }
+  if (!visible.length) return;
+  const gap = compact ? 8 : 7;
+  const placed = visible.map((point, index) => ({
+    point,
+    x: index === 0 ? point.x : 0,
+  }));
+  for (let index = 1; index < placed.length; index += 1) {
+    placed[index].x = Math.max(placed[index].point.x, placed[index - 1].x + labelWidth + gap);
+  }
+  const anchorCenter = visible.reduce((sum, point) => sum + point.x, 0) / visible.length;
+  const placedCenter = placed.reduce((sum, entry) => sum + entry.x, 0) / placed.length;
+  const leftEdge = placed[0].x - labelWidth / 2 + anchorCenter - placedCenter;
+  const rightEdge = placed.at(-1).x + labelWidth / 2 + anchorCenter - placedCenter;
+  const shift = anchorCenter - placedCenter + Math.max(0, 10 - leftEdge) - Math.max(0, rightEdge - width + 10);
+  const lowestAnchor = Math.max(...visible.map((point) => point.y));
+  const below = lowestAnchor + 84 < height - 146;
+  const rowBottom = below ? lowestAnchor + 84 : Math.max(112, Math.min(height - 146, Math.min(...visible.map((point) => point.y)) - 8));
+  for (const { point, x: rawX } of placed) {
+    const button = labelButtons.get(point.id);
+    const x = rawX + shift;
+    const bottom = below ? rowBottom : Math.min(rowBottom, point.y - 8);
+    const dx = point.x - x;
+    const dy = below ? bottom - labelHeight - point.y : point.y - bottom;
+    button.classList.toggle('is-below', below);
+    button.style.left = `${x}px`;
+    button.style.top = `${bottom}px`;
+    button.style.setProperty('--leader-length', `${Math.max(8, Math.hypot(dx, dy) - 4)}px`);
+    button.style.setProperty('--leader-angle', `${Math.atan2(dx, dy)}rad`);
+  }
+}
 
 works.forEach((work, index) => {
   const button = document.createElement('button');
@@ -64,8 +156,9 @@ function setActive(id) {
     chip.classList.toggle('active', selected);
     chip.setAttribute('aria-pressed', String(selected));
   }
+  for (const button of labelButtons.values()) button.classList.toggle('active', button.dataset.workId === id);
   const work = works.find((entry) => entry.id === id);
-  status.textContent = work ? `已选中：${work.title}` : '小幅拖动改变视角；悬停提示，点击模型浏览作品';
+  status.textContent = work ? `已选中：${work.title}` : '小幅拖动改变视角；点击桌面标签或模型浏览作品';
 }
 
 async function openWork(id, trigger = canvas) {
@@ -79,7 +172,10 @@ async function openWork(id, trigger = canvas) {
   if (dialog.open) dialog.close();
   clearMediaStage();
   browsingState = 'focusing';
+  setLabelMode('focusing');
   hideTooltip();
+  studio?.setHoveredWork(null);
+  highlightWork(null);
   setActive(id);
   status.textContent = `正在靠近：${work.title}`;
   const index = works.indexOf(work) + 1;
@@ -89,6 +185,7 @@ async function openWork(id, trigger = canvas) {
   if (!moved || revision !== selectionRevision || activeWorkId !== id) return false;
   renderWork(work, index);
   browsingState = 'details';
+  setLabelMode('details');
   status.textContent = `正在查看：${work.title}`;
   if (!dialog.open) dialog.showModal();
   return true;
@@ -97,6 +194,7 @@ async function openWork(id, trigger = canvas) {
 function closeWork({ overview = false } = {}) {
   const revision = ++selectionRevision;
   browsingState = 'returning';
+  setLabelMode('returning');
   if (resumeLightbox.open) resumeLightbox.close();
   clearMediaStage();
   if (dialog.open) dialog.close();
@@ -106,6 +204,7 @@ function closeWork({ overview = false } = {}) {
   return Promise.resolve(motion).then((completed) => {
     if (revision !== selectionRevision || completed === false) return;
     browsingState = 'overview';
+    setLabelMode('overview');
     if (previousWorkTrigger?.isConnected) previousWorkTrigger.focus({ preventScroll: true });
   });
 }
@@ -523,11 +622,13 @@ const controller = createStudio({
   },
   onLoaded({ workRoots }) {
     studio = controller;
+    createSceneLabels(workRoots);
+    studio.setLabelUpdateHandler(updateSceneLabels);
     loading.classList.add('loaded');
     $('#scene-poster').classList.add('hidden');
     document.documentElement.classList.add('scene-ready');
     updateLoadProgress(100);
-    status.textContent = '小幅拖动改变视角；悬停提示，点击模型浏览作品';
+    status.textContent = '小幅拖动改变视角；点击桌面标签或模型浏览作品';
     canvas.focus({ preventScroll: true });
     if (workRoots.size < works.length) showToast('工作室已打开，部分桌面模型正在整理。');
     registerWebMcp();
@@ -549,7 +650,11 @@ const controller = createStudio({
     closeWork({ overview: true });
   },
   onHover(id, point) {
-    for (const chip of list.querySelectorAll('.work-chip')) chip.classList.toggle('hovered', chip.dataset.workId === id);
+    highlightWork(id);
+    if (labelButtons.size) {
+      hideTooltip();
+      return;
+    }
     const workIndex = works.findIndex((work) => work.id === id);
     if (workIndex < 0 || !point) {
       hideTooltip();
