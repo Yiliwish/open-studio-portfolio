@@ -16,6 +16,8 @@ const status = $('#scene-status');
 const tooltip = $('#work-tooltip');
 const tooltipNumber = $('#work-tooltip-number');
 const tooltipTitle = $('#work-tooltip-title');
+const resumeLightbox = $('#resume-lightbox');
+const resumeLightboxImage = $('#resume-lightbox-image');
 const projectTabs = $('#project-tabs');
 const mediaStage = $('#media-stage');
 const mediaGallery = $('#media-gallery');
@@ -95,6 +97,7 @@ async function openWork(id, trigger = canvas) {
 function closeWork({ overview = false } = {}) {
   const revision = ++selectionRevision;
   browsingState = 'returning';
+  if (resumeLightbox.open) resumeLightbox.close();
   clearMediaStage();
   if (dialog.open) dialog.close();
   hideTooltip();
@@ -243,6 +246,20 @@ function renderMedia(item) {
     image.alt = item.alt || item.label;
     image.decoding = 'async';
     image.fetchPriority = 'high';
+    if (dialog.classList.contains('resume-view')) {
+      const trigger = makeElement('button', 'resume-zoom-trigger');
+      trigger.type = 'button';
+      trigger.setAttribute('aria-label', '点击放大查看简历');
+      trigger.setAttribute('aria-haspopup', 'dialog');
+      trigger.append(image, makeElement('span', 'stage-caption', '点击放大查看'));
+      trigger.addEventListener('click', () => {
+        resumeLightboxImage.src = item.src;
+        resumeLightboxImage.alt = item.alt || item.label;
+        if (!resumeLightbox.open) resumeLightbox.showModal();
+      });
+      mediaStage.append(trigger);
+      return;
+    }
     mediaStage.append(image, makeElement('span', 'stage-caption', item.label));
     return;
   }
@@ -283,9 +300,10 @@ function renderMedia(item) {
 
   if (item.type === 'model') {
     const canvas = makeElement('canvas', 'stage-model');
-    canvas.setAttribute('aria-label', item.alt || item.label);
+    canvas.tabIndex = 0;
+    canvas.setAttribute('aria-label', `${item.alt || item.label}；拖动旋转，滚轮缩放；方向键旋转，加减号缩放`);
     mediaStage.append(canvas, makeElement('span', 'stage-caption', '拖动旋转 · 滚轮缩放'));
-    mountStlViewer(canvas, item);
+    mountModelViewer(canvas, item);
     return;
   }
 
@@ -305,23 +323,36 @@ function renderMedia(item) {
   }
 }
 
-async function mountStlViewer(canvas, item) {
+async function mountModelViewer(canvas, item) {
   const revision = mediaRevision;
-  const viewer = { frame: 0, observer: null, controls: null, renderer: null };
+  const isGlb = item.src.toLowerCase().endsWith('.glb');
+  const viewer = { frame: 0, observer: null, controls: null, renderer: null, model: null };
   activeModelViewer = viewer;
+  const disposeModel = (object) => {
+    object?.traverse((node) => {
+      node.geometry?.dispose();
+      for (const material of [node.material].flat().filter(Boolean)) {
+        for (const value of Object.values(material)) {
+          if (value?.isTexture) value.dispose();
+        }
+        material.dispose();
+      }
+    });
+  };
   const dispose = () => {
     cancelAnimationFrame(viewer.frame);
     viewer.observer?.disconnect();
     viewer.controls?.dispose();
+    disposeModel(viewer.model);
     viewer.renderer?.dispose();
   };
   viewer.dispose = dispose;
 
   try {
-    const [THREE, { STLLoader }, { OrbitControls }] = await Promise.all([
+    const [THREE, { OrbitControls }, loaderModule] = await Promise.all([
       import('three').then((module) => module),
-      import('three/addons/loaders/STLLoader.js'),
       import('three/addons/controls/OrbitControls.js'),
+      isGlb ? import('three/addons/loaders/GLTFLoader.js') : import('three/addons/loaders/STLLoader.js'),
     ]);
     if (revision !== mediaRevision || !canvas.isConnected) return;
 
@@ -329,27 +360,43 @@ async function mountStlViewer(canvas, item) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
     renderer.setClearColor('#e7e4dc', 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    if (isGlb) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+    }
     viewer.renderer = renderer;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(36, 1, 0.01, 100);
-    camera.position.set(3, 2.3, 3.5);
-    scene.add(new THREE.HemisphereLight('#fffdf6', '#908b7f', 2.1));
-    const key = new THREE.DirectionalLight('#fff7e8', 2.3);
+    camera.position.set(3.4, 2.4, 4.5);
+    scene.add(new THREE.HemisphereLight('#fffdf6', '#908b7f', isGlb ? 1.5 : 2.1));
+    const key = new THREE.DirectionalLight('#fff7e8', isGlb ? 1.8 : 2.3);
     key.position.set(3, 5, 4);
     scene.add(key);
-    const fill = new THREE.DirectionalLight('#d6e5f2', 1.1);
+    const fill = new THREE.DirectionalLight('#d6e5f2', isGlb ? 0.7 : 1.1);
     fill.position.set(-4, 2, -3);
     scene.add(fill);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.065;
-    controls.minDistance = 2.2;
-    controls.maxDistance = 9;
+    controls.minDistance = 1.6;
+    controls.maxDistance = 14;
     controls.enablePan = false;
     controls.target.set(0, 0, 0);
     viewer.controls = controls;
+    canvas.addEventListener('keydown', (event) => {
+      const rotation = { ArrowLeft: -0.14, ArrowRight: 0.14, ArrowUp: -0.14, ArrowDown: 0.14 };
+      const zoom = event.key === '+' || event.key === '=' ? 0.9 : event.key === '-' ? 1.1 : null;
+      if (!(event.key in rotation) && zoom === null) return;
+      event.preventDefault();
+      const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') spherical.theta += rotation[event.key];
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') spherical.phi = THREE.MathUtils.clamp(spherical.phi + rotation[event.key], 0.08, Math.PI - 0.08);
+      if (zoom !== null) spherical.radius = THREE.MathUtils.clamp(spherical.radius * zoom, controls.minDistance, controls.maxDistance);
+      camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
+      controls.update();
+    });
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -362,29 +409,36 @@ async function mountStlViewer(canvas, item) {
     viewer.observer.observe(canvas);
     resize();
 
-    new STLLoader().load(item.src, (geometry) => {
+    const loader = isGlb ? new loaderModule.GLTFLoader() : new loaderModule.STLLoader();
+    loader.load(item.src, (loaded) => {
+      const content = isGlb ? loaded.scene : new THREE.Mesh(
+        loaded,
+        new THREE.MeshStandardMaterial({ color: '#b1a17e', roughness: 0.72, metalness: 0.08 }),
+      );
       if (revision !== mediaRevision || !canvas.isConnected) {
-        geometry.dispose();
+        disposeModel(content);
         dispose();
         return;
       }
-      // Blender's STL export uses Z-up; Three.js viewers use Y-up.
-      geometry.rotateX(-Math.PI / 2);
-      geometry.computeVertexNormals();
-      geometry.computeBoundingBox();
-      const center = geometry.boundingBox.getCenter(new THREE.Vector3());
-      const size = geometry.boundingBox.getSize(new THREE.Vector3());
-      geometry.translate(-center.x, -center.y, -center.z);
-      const scale = 2.35 / Math.max(size.x, size.y, size.z, 0.001);
-      geometry.scale(scale, scale, scale);
-      geometry.computeVertexNormals();
-      const material = new THREE.MeshStandardMaterial({ color: '#b1a17e', roughness: 0.72, metalness: 0.08 });
-      const mesh = new THREE.Mesh(geometry, material);
-      scene.add(mesh);
-      camera.position.set(2.6, 1.8, 3.6);
+      if (!isGlb) {
+        // Blender's STL export uses Z-up; Three.js viewers use Y-up.
+        loaded.rotateX(-Math.PI / 2);
+        loaded.computeVertexNormals();
+      }
+      const bounds = new THREE.Box3().setFromObject(content);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      const scale = (isGlb ? 3.3 : 2.5) / Math.max(size.x, size.y, size.z, 0.001);
+      const model = new THREE.Group();
+      model.add(content);
+      model.scale.setScalar(scale);
+      model.position.copy(center).multiplyScalar(-scale);
+      scene.add(model);
+      viewer.model = model;
+      camera.position.set(3.4, 2.4, 4.5);
       controls.target.set(0, 0, 0);
       controls.update();
-    }, undefined, () => showToast('3D 模型暂时无法载入，可继续浏览打印预览图。'));
+    }, undefined, () => showToast('3D 模型暂时无法载入，可继续浏览其他图片。'));
 
     const draw = () => {
       if (revision !== mediaRevision) return;
@@ -394,12 +448,13 @@ async function mountStlViewer(canvas, item) {
     };
     draw();
   } catch (error) {
-    console.error('Unable to load the printable model viewer.', error);
-    if (revision === mediaRevision) showToast('3D 模型暂时无法载入，可继续浏览打印预览图。');
+    console.error('Unable to load the model viewer.', error);
+    if (revision === mediaRevision) showToast('3D 模型暂时无法载入，可继续浏览其他图片。');
   }
 }
 
 $('#close-work').addEventListener('click', () => closeWork());
+$('#close-resume-lightbox').addEventListener('click', () => resumeLightbox.close());
 $('#reset-view').addEventListener('click', () => {
   previousWorkTrigger = $('#reset-view');
   closeWork({ overview: true });

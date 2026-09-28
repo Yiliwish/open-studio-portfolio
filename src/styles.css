@@ -109,6 +109,11 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .detail-media-column { display: grid; min-width: 0; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; gap: 13px; padding: 21px 18px 18px 24px; }
 .media-stage { position: relative; display: grid; min-width: 0; min-height: 270px; place-items: center; overflow: hidden; border: 1px solid rgba(42, 57, 47, .09); border-radius: 18px; background: #e7e4dc; }
 .stage-image, .stage-video, .stage-model, .stage-pdf { display: block; width: 100%; height: 100%; min-height: 0; border: 0; object-fit: contain; }
+.stage-model:focus-visible { outline: 3px solid var(--red); outline-offset: -3px; }
+.resume-zoom-trigger { position: relative; display: grid; width: 100%; height: 100%; min-height: 0; place-items: center; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+.resume-zoom-trigger .stage-image { transition: transform .2s ease; }
+.resume-zoom-trigger:hover .stage-image { transform: scale(1.015); }
+.resume-zoom-trigger:focus-visible { z-index: 1; outline: 3px solid var(--red); outline-offset: -4px; }
 .stage-caption { position: absolute; right: 13px; bottom: 12px; padding: 6px 9px; border: 1px solid rgba(255, 255, 255, .48); border-radius: 999px; background: rgba(250, 248, 239, .82); color: #48564c; font-size: 12px; backdrop-filter: blur(8px); }
 .video-preview { position: relative; display: block; width: 100%; height: 100%; min-height: 270px; padding: 0; overflow: hidden; border: 0; background: #252927; cursor: pointer; }
 .video-preview .stage-image { opacity: .9; transition: transform .45s ease, opacity .3s ease; }
@@ -118,6 +123,15 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .media-gallery { display: flex; gap: 9px; min-height: 82px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: thin; scrollbar-color: rgba(101, 119, 100, .35) transparent; }
 .work-dialog.resume-view .detail-media-column { grid-template-rows: minmax(0, 1fr); gap: 0; padding: 14px; }
 .work-dialog.resume-view .media-gallery { display: none; }
+.resume-lightbox { position: fixed; inset: 0; width: min(1280px, calc(100vw - 36px)); height: min(94dvh, calc(100dvh - 28px)); max-width: none; max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: hidden; border: 1px solid rgba(54, 72, 54, .2); border-radius: 20px; color: var(--ink); background: #faf8ef; box-shadow: 0 28px 100px rgba(20, 27, 22, .36); }
+.resume-lightbox[open] { animation: dialog-in .2s ease-out both; }
+.resume-lightbox::backdrop { background: rgba(17, 24, 20, .72); backdrop-filter: blur(5px); }
+.resume-lightbox-shell { display: grid; height: 100%; grid-template-rows: 60px minmax(0, 1fr); }
+.resume-lightbox-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 18px 8px 22px; border-bottom: 1px solid var(--line); }
+.resume-lightbox-topline h2 { margin: 0 0 2px; color: var(--ink); font-size: 15px; font-weight: 650; }
+.resume-lightbox-help { color: #758073; font-size: 12px; }
+.resume-lightbox-content { display: grid; min-height: 0; overflow: auto; place-items: center; padding: 16px; background: #e7e4dc; }
+.resume-lightbox-image { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 8px 30px rgba(37, 42, 35, .17); }
 .media-thumb { position: relative; display: grid; min-width: 120px; max-width: 156px; height: 76px; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 8px; padding: 7px; border: 1px solid rgba(42, 57, 47, .1); border-radius: 12px; background: rgba(239, 237, 226, .72); color: #506053; text-align: left; cursor: pointer; transition: border-color .2s ease, background .2s ease, transform .2s ease; }
 .media-thumb:hover { transform: translateY(-2px); }
 .media-thumb[aria-pressed="true"] { border-color: rgba(207, 76, 56, .52); background: #fffaf0; box-shadow: 0 4px 16px rgba(94, 72, 47, .08); }
@@ -183,6 +197,10 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
   .chip-index { width: 24px; height: 24px; }
   .chip-name { font-size: 12px; }
   .work-dialog { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .resume-lightbox { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .resume-lightbox-shell { grid-template-rows: 56px minmax(0, 1fr); }
+  .resume-lightbox-topline { padding: 7px 14px 7px 18px; }
+  .resume-lightbox-content { padding: 8px; }
   .dialog-shell { grid-template-rows: 58px auto minmax(0, 1fr) 52px; }
   .dialog-topline { padding: max(8px, env(safe-area-inset-top)) 15px 7px 19px; }
   .project-tabs { min-height: 43px; gap: 4px; padding: 0 15px; }

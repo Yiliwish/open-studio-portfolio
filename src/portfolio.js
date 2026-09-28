@@ -157,20 +157,21 @@ export const works = [
     name: '建筑项目',
     title: 'AI 建模在建筑方案中的应用',
     category: 'AI 建模 · 建筑空间',
-    description: '展示建筑形态生成、场地关系和流线推演，结合效果图、分析图与方案 PDF 阅读空间方案。',
+    description: '通过可旋转的建筑模型、效果图、流线分析和方案 PDF 展示建筑形态与场地关系。',
     parts: [
       {
         label: '建筑方案',
         title: '从建筑体量到场地流线',
-        intro: '以高差、坡道、露台和场地入口组织空间，使用效果图与流线分析图并列呈现方案思路。',
+        intro: '以高差、坡道、露台和场地入口组织空间，结合可交互模型、效果图与流线分析图呈现方案思路。',
         steps: [
           { title: '形体构想', text: '以平台、坡道和露台构成可连续行走的建筑体量。' },
           { title: '空间推演', text: '区分人行、车行与垂直交通，检查路径交汇和场地入口。' },
           { title: '方案表达', text: '通过效果图、流线图和 PDF 图纸说明空间关系。' },
         ],
-        tags: ['建筑概念', '场地流线', '方案图纸'],
-        note: '当前目录以效果图、分析图和 PDF 为主；详情不会把这些图片误标成可旋转的建筑模型。',
+        tags: ['建筑概念', '三维模型', '场地流线', '方案图纸'],
+        note: '拖动三维模型可查看建筑形态，滚轮可缩放；方向键和加减号也可操作。',
         media: [
+          { type: 'model', src: '/models/architecture.glb', label: '旋转查看建筑模型', alt: '可旋转缩放的建筑方案三维模型' },
           { type: 'image', src: '/works/architecture/architecture-aerial.webp', label: '建筑场地效果图', alt: '建筑平台、坡道与周边街区的鸟瞰效果图' },
           { type: 'image', src: '/works/architecture/architecture-flow.webp', label: '场地交通流线', alt: '建筑场地的人行、车行和垂直交通流线分析图' },
           { type: 'image', src: '/works/architecture/architecture-concept-1.webp', label: '建筑概念视图一', alt: '建筑概念方案效果图一' },
