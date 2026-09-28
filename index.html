@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#e8e8dc" />
-    <meta name="description" content="一间置于草地与天空之间的 3D 工作室，点击场景中的模型浏览作品。" />
-    <title>Open Studio — 3D 作品集</title>
+    <meta name="description" content="走进 3D 工作室，探索 AI 建模在视频、游戏、3D 打印和建筑中的应用。" />
+    <title>Open Studio — AI 建模作品集</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
@@ -23,7 +23,7 @@
         <header class="masthead">
           <a class="brand" href="/" aria-label="Open Studio，返回场景全景">
             <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="brand-copy"><strong>OPEN STUDIO</strong><small>3D WORKS · 01—05</small></span>
+            <span class="brand-copy"><strong>OPEN STUDIO</strong><small>AI MODELING · 01—05</small></span>
           </a>
           <div class="masthead-tools">
             <p class="interaction-hint"><span class="hint-dot" aria-hidden="true"></span>小幅拖动 <b>·</b> 悬停提示</p>
@@ -36,7 +36,7 @@
         <div class="scene-label" aria-hidden="true"><span>STUDIO VIEW</span><span class="scene-label-line"></span><span>晴日 · 自然光</span></div>
 
         <section class="work-rail" aria-label="桌面作品目录">
-          <div class="rail-heading"><span>桌面作品</span><span id="rail-counter">05 件模型</span></div>
+          <div class="rail-heading"><span>AI 建模应用方向</span><span id="rail-counter">05 个入口</span></div>
           <div class="rail-items" id="work-list"></div>
         </section>
 
@@ -50,10 +50,40 @@
         </div>
 
         <dialog class="work-dialog" id="work-dialog" aria-labelledby="work-title">
-          <div class="dialog-topline"><span id="work-number">作品 01 / 05</span><button class="icon-button close-button" id="close-work" type="button" aria-label="关闭作品介绍"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button></div>
-          <div class="dialog-main"><div><p class="eyebrow" id="work-category">模型作品</p><h1 id="work-title">作品名称</h1></div><span class="dialog-index" id="work-index">01</span></div>
-          <p class="dialog-note" id="work-description">点击场景中的其他模型，继续浏览桌面作品。</p>
-          <div class="dialog-bottom"><span class="model-tag"><span class="model-tag-dot"></span>BLENDER MODEL</span><div class="dialog-nav"><button id="previous-work" type="button" aria-label="查看上一件作品">←</button><button id="next-work" type="button" aria-label="查看下一件作品">→</button></div></div>
+          <div class="dialog-shell">
+            <div class="dialog-topline">
+              <span id="work-number">作品 01 / 05</span>
+              <button class="icon-button close-button" id="close-work" type="button" aria-label="关闭作品介绍">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <div class="project-tabs" id="project-tabs" role="group" aria-label="项目内容"></div>
+            <div class="detail-content" id="project-panel" role="region" aria-label="项目详情">
+              <section class="detail-media-column" aria-label="项目媒体">
+                <div class="media-stage" id="media-stage" role="region" aria-live="polite"></div>
+                <div class="media-gallery" id="media-gallery" role="group" aria-label="项目图片与媒体"></div>
+              </section>
+              <article class="detail-copy">
+                <p class="eyebrow" id="work-category">AI 建模项目</p>
+                <div class="detail-title-row"><h1 id="work-title">作品名称</h1><span class="dialog-index" id="work-index">01</span></div>
+                <p class="detail-intro" id="work-description"></p>
+                <section class="process-section" aria-labelledby="process-heading">
+                  <h2 id="process-heading">从模型到应用</h2>
+                  <div class="process-list" id="work-stages"></div>
+                </section>
+                <div class="work-tags" id="work-tags" aria-label="项目关键词"></div>
+                <p class="work-note" id="work-note"></p>
+                <div class="work-actions" id="work-actions"></div>
+              </article>
+            </div>
+            <div class="dialog-bottom">
+              <span class="detail-hint" id="detail-hint">滚动查看项目内容</span>
+              <div class="dialog-nav">
+                <button id="previous-work" type="button" aria-label="查看上一件作品">←</button>
+                <button id="next-work" type="button" aria-label="查看下一件作品">→</button>
+              </div>
+            </div>
+          </div>
         </dialog>
 
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
