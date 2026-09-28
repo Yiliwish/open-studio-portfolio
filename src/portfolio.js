@@ -188,3 +188,18 @@ export const works = [
     ],
   },
 ];
+
+// Resolve local project assets against Vite's base URL so project Pages URLs work.
+const baseUrl = import.meta.env.BASE_URL;
+for (const work of works) {
+  for (const part of work.parts ?? []) {
+    for (const media of part.media ?? []) {
+      for (const key of ['src', 'poster']) {
+        if (media[key]?.startsWith('/')) media[key] = `${baseUrl}${media[key].slice(1)}`;
+      }
+    }
+    for (const action of part.actions ?? []) {
+      if (action.href?.startsWith('/')) action.href = `${baseUrl}${action.href.slice(1)}`;
+    }
+  }
+}

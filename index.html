@@ -6,12 +6,12 @@
     <meta name="theme-color" content="#e8e8dc" />
     <meta name="description" content="走进 3D 工作室，探索 AI 建模在视频、游戏、3D 打印和建筑中的应用。" />
     <title>Open Studio — AI 建模作品集</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
   </head>
   <body>
     <main id="portfolio" aria-label="3D 工作室作品集">
       <div class="world" id="world">
-        <img class="scene-poster" id="scene-poster" src="/scene-preview.png" alt="工作室模型预览" />
+        <img class="scene-poster" id="scene-poster" src="%BASE_URL%scene-preview.png" alt="工作室模型预览" />
         <canvas id="studio-canvas" tabindex="0" aria-label="3D 工作室场景。拖动改变视角，滚轮缩放，按 R 或 Home 恢复全景，点击模型查看作品。"></canvas>
         <div class="scene-work-labels" id="scene-work-labels" aria-label="场景中的作品入口" hidden></div>
         <div class="work-tooltip" id="work-tooltip" aria-hidden="true">
@@ -22,7 +22,7 @@
         <div class="world-wash" aria-hidden="true"></div>
 
         <header class="masthead">
-          <a class="brand" href="/" aria-label="Open Studio，返回场景全景">
+          <a class="brand" href="%BASE_URL%" aria-label="Open Studio，返回场景全景">
             <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
             <span class="brand-copy"><strong>OPEN STUDIO</strong><small>AI MODELING · 01—05</small></span>
           </a>
@@ -107,6 +107,6 @@
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
       </div>
     </main>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>

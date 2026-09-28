@@ -1,7 +1,12 @@
 import { defineConfig } from 'vite';
 
+const requestedBase = process.env.VITE_BASE_PATH?.trim();
+const base = requestedBase
+  ? `/${requestedBase.split('/').filter(Boolean).join('/')}/`
+  : '/';
+
 export default defineConfig({
-  base: '/',
+  base,
   publicDir: 'public',
   build: {
     outDir: 'dist',

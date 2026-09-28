@@ -9,7 +9,8 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 
-const MODEL_URL = '/models/studio.glb';
+const BASE_URL = import.meta.env.BASE_URL;
+const MODEL_URL = `${BASE_URL}models/studio.glb`;
 const WORK_IDS = new Set(['printer', 'game-board', 'computer', 'video', 'architecture']);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -242,7 +243,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   resize.observe(canvas);
 
   const draco = new DRACOLoader();
-  draco.setDecoderPath('/draco/');
+  draco.setDecoderPath(`${BASE_URL}draco/`);
   draco.setDecoderConfig({ type: 'wasm' });
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
@@ -299,7 +300,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   function loadWallTitle() {
     const loader = new FontLoader();
     loader.load(
-      '/fonts/helvetiker_bold.typeface.json',
+      `${BASE_URL}fonts/helvetiker_bold.typeface.json`,
       (font) => {
         const title = createWallTitle(font);
         scene.add(title);

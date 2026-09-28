@@ -522,7 +522,7 @@ async function mountModelViewer(canvas, item, status) {
     const loader = isGlb ? new loaderModule.GLTFLoader() : new loaderModule.STLLoader();
     if (isGlb && dracoModule) {
       const dracoLoader = new dracoModule.DRACOLoader();
-      dracoLoader.setDecoderPath('/draco/');
+      dracoLoader.setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
       loader.setDRACOLoader(dracoLoader);
       viewer.dracoLoader = dracoLoader;
     }
