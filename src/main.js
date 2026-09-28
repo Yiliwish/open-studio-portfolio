@@ -116,6 +116,7 @@ function makeElement(tag, className, text) {
 
 function renderWork(work, index) {
   activePartIndex = 0;
+  dialog.classList.toggle('resume-view', work.id === 'computer');
   $('#work-index').textContent = String(index).padStart(2, '0');
   renderProjectPart(work);
 }
@@ -367,6 +368,8 @@ async function mountStlViewer(canvas, item) {
         dispose();
         return;
       }
+      // Blender's STL export uses Z-up; Three.js viewers use Y-up.
+      geometry.rotateX(-Math.PI / 2);
       geometry.computeVertexNormals();
       geometry.computeBoundingBox();
       const center = geometry.boundingBox.getCenter(new THREE.Vector3());

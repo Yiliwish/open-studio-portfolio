@@ -116,6 +116,8 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .play-mark { position: absolute; top: 50%; left: 50%; display: grid; width: 62px; height: 62px; place-items: center; border: 1px solid rgba(255,255,255,.72); border-radius: 50%; background: rgba(45, 56, 48, .52); color: white; font-size: 21px; transform: translate(-50%, -50%); backdrop-filter: blur(8px); }
 .video-label { position: absolute; right: 13px; bottom: 12px; left: 13px; width: max-content; max-width: calc(100% - 26px); padding: 7px 10px; border-radius: 999px; background: rgba(250, 248, 239, .87); color: #3f4b41; font-size: 13px; text-align: left; }
 .media-gallery { display: flex; gap: 9px; min-height: 82px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: thin; scrollbar-color: rgba(101, 119, 100, .35) transparent; }
+.work-dialog.resume-view .detail-media-column { grid-template-rows: minmax(0, 1fr); gap: 0; padding: 14px; }
+.work-dialog.resume-view .media-gallery { display: none; }
 .media-thumb { position: relative; display: grid; min-width: 120px; max-width: 156px; height: 76px; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 8px; padding: 7px; border: 1px solid rgba(42, 57, 47, .1); border-radius: 12px; background: rgba(239, 237, 226, .72); color: #506053; text-align: left; cursor: pointer; transition: border-color .2s ease, background .2s ease, transform .2s ease; }
 .media-thumb:hover { transform: translateY(-2px); }
 .media-thumb[aria-pressed="true"] { border-color: rgba(207, 76, 56, .52); background: #fffaf0; box-shadow: 0 4px 16px rgba(94, 72, 47, .08); }
@@ -187,6 +189,7 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
   .project-tab { min-height: 42px; padding-inline: 10px; }
   .detail-content { display: block; overflow-y: auto; overscroll-behavior: contain; }
   .detail-media-column { height: min(44dvh, 390px); min-height: 300px; grid-template-rows: minmax(0, 1fr) auto; gap: 9px; padding: 12px 14px 10px; }
+  .work-dialog.resume-view .detail-media-column { height: min(70dvh, 620px); min-height: 300px; }
   .media-stage { min-height: 205px; border-radius: 14px; }
   .video-preview { min-height: 205px; }
   .media-gallery { min-height: 70px; gap: 7px; }
