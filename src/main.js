@@ -22,6 +22,43 @@ const resumeLightboxPages = $('#resume-lightbox-pages');
 const projectTabs = $('#project-tabs');
 const mediaStage = $('#media-stage');
 const mediaGallery = $('#media-gallery');
+const themeToggle = $('#theme-toggle');
+const themeLabel = $('#scene-lighting-label');
+const THEME_STORAGE_KEY = 'open-studio-theme';
+
+function readSavedTheme() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) === 'night' ? 'night' : 'day';
+  } catch {
+    return 'day';
+  }
+}
+
+let activeTheme = readSavedTheme();
+
+function syncThemeUI(theme) {
+  const isNight = theme === 'night';
+  document.documentElement.dataset.theme = isNight ? 'night' : 'day';
+  themeToggle.setAttribute('aria-pressed', String(isNight));
+  const nextLabel = isNight ? '切换到日间模式' : '切换到夜间模式';
+  themeToggle.setAttribute('aria-label', nextLabel);
+  themeToggle.title = nextLabel;
+  themeLabel.textContent = isNight ? '夜色 · 暖光工作室' : '晴日 · 自然光';
+  $('meta[name="theme-color"]').content = isNight ? '#172536' : '#e8e8dc';
+}
+
+function setPortfolioTheme(theme) {
+  activeTheme = theme === 'night' ? 'night' : 'day';
+  syncThemeUI(activeTheme);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
+  } catch {
+    // The current session still follows the selected theme when storage is unavailable.
+  }
+  studio?.setTheme(activeTheme);
+}
+
+syncThemeUI(activeTheme);
 
 let studio = null;
 let activeWorkId = null;
@@ -607,6 +644,7 @@ $('#reset-view').addEventListener('click', () => {
   previousWorkTrigger = $('#reset-view');
   closeWork({ overview: true });
 });
+themeToggle.addEventListener('click', () => setPortfolioTheme(activeTheme === 'night' ? 'day' : 'night'));
 dialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeWork();
@@ -622,6 +660,7 @@ $('#previous-work').addEventListener('click', () => stepWork(-1));
 $('#next-work').addEventListener('click', () => stepWork(1));
 const controller = createStudio({
   canvas,
+  initialTheme: activeTheme,
   onProgress(percent) {
     loadingTitle.textContent = '正在载入工作室';
     loadingDetail.textContent = '读取模型与材质';

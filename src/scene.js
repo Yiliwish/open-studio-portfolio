@@ -14,12 +14,13 @@ const MODEL_URL = `${BASE_URL}models/studio.glb`;
 const WORK_IDS = new Set(['printer', 'game-board', 'computer', 'video', 'architecture']);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, onHover, onReset }) {
+export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, onHover, onReset, initialTheme = 'day' }) {
   const scene = new THREE.Scene();
   const backdrop = new THREE.Color('#bab6b0');
   scene.background = backdrop;
   scene.fog = new THREE.Fog(0xe5e8dd, 48, 142);
-  createSky(scene);
+  let nightMix = initialTheme === 'night' ? 1 : 0;
+  const skyTheme = createSky(scene, nightMix);
   createMeadow(scene);
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 700);
   const homePosition = new THREE.Vector3(0, 9.7, 27.5);
@@ -90,6 +91,78 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
   scene.add(focusBeam);
   const overviewLighting = { ambient: 2.2, sun: 1.2, fill: 0.62, spot: 0, beam: 0 };
   const selectedLighting = { ambient: 1.78, sun: 0.91, fill: 0.45, spot: 19, beam: 0.095 };
+  const nightOverviewLighting = { ambient: 1.62, sun: 0.18, fill: 0.98, spot: 0, beam: 0 };
+  const nightSelectedLighting = { ambient: 1.22, sun: 0.1, fill: 0.76, spot: 13, beam: 0.08 };
+  const lightingState = {
+    day: { ...overviewLighting },
+    night: { ...nightOverviewLighting },
+  };
+  let currentTheme = initialTheme === 'night' ? 'night' : 'day';
+  let themeAnimationFrame = 0;
+  const dayBackdrop = new THREE.Color('#bab6b0');
+  const nightBackdrop = new THREE.Color('#172536');
+  const dayFog = new THREE.Color('#e5e8dd');
+  const nightFog = new THREE.Color('#89949a');
+  const ambientSkyDay = new THREE.Color('#f4f8ff');
+  const ambientSkyNight = new THREE.Color('#c0d0ee');
+  const ambientGroundDay = new THREE.Color('#82775e');
+  const ambientGroundNight = new THREE.Color('#3c4657');
+  const sunColorDay = new THREE.Color('#ffedcf');
+  const sunColorNight = new THREE.Color('#9db9ee');
+  const fillColorDay = new THREE.Color('#f0f4e8');
+  const fillColorNight = new THREE.Color('#ffd49f');
+
+  function applyLighting() {
+    const mix = nightMix;
+    const day = lightingState.day;
+    const night = lightingState.night;
+    ambientLight.intensity = THREE.MathUtils.lerp(day.ambient, night.ambient, mix);
+    sunlight.intensity = THREE.MathUtils.lerp(day.sun, night.sun, mix);
+    softFill.intensity = THREE.MathUtils.lerp(day.fill, night.fill, mix);
+    focusSpotlight.intensity = THREE.MathUtils.lerp(day.spot, night.spot, mix);
+    beamMaterial.uniforms.opacity.value = THREE.MathUtils.lerp(day.beam, night.beam, mix);
+    ambientLight.color.copy(ambientSkyDay).lerp(ambientSkyNight, mix);
+    ambientLight.groundColor.copy(ambientGroundDay).lerp(ambientGroundNight, mix);
+    sunlight.color.copy(sunColorDay).lerp(sunColorNight, mix);
+    softFill.color.copy(fillColorDay).lerp(fillColorNight, mix);
+  }
+
+  function applyThemeMix() {
+    backdrop.copy(dayBackdrop).lerp(nightBackdrop, nightMix);
+    scene.fog.color.copy(dayFog).lerp(nightFog, nightMix);
+    scene.fog.near = THREE.MathUtils.lerp(48, 30, nightMix);
+    scene.fog.far = THREE.MathUtils.lerp(142, 92, nightMix);
+    skyTheme.setNightMix(nightMix);
+    applyLighting();
+  }
+
+  function setTheme(theme, { immediate = false } = {}) {
+    const nextTheme = theme === 'night' ? 'night' : 'day';
+    currentTheme = nextTheme;
+    cancelAnimationFrame(themeAnimationFrame);
+    const from = nightMix;
+    const target = nextTheme === 'night' ? 1 : 0;
+    if (immediate || reduceMotion || from === target) {
+      nightMix = target;
+      applyThemeMix();
+      render();
+      return;
+    }
+    const startedAt = performance.now();
+    const duration = 900;
+    const frame = (now) => {
+      const t = Math.min(1, (now - startedAt) / duration);
+      const eased = t * t * (3 - 2 * t);
+      nightMix = THREE.MathUtils.lerp(from, target, eased);
+      applyThemeMix();
+      render();
+      if (t < 1) themeAnimationFrame = requestAnimationFrame(frame);
+      else themeAnimationFrame = 0;
+    };
+    themeAnimationFrame = requestAnimationFrame(frame);
+  }
+
+  applyThemeMix();
 
   const controls = new OrbitControls(camera, canvas);
   controls.target.copy(homeTarget);
@@ -340,13 +413,12 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     const fromTarget = controls.target.clone();
     const startedAt = performance.now();
     const lightFrom = {
-      ambient: ambientLight.intensity,
-      sun: sunlight.intensity,
-      fill: softFill.intensity,
-      spot: focusSpotlight.intensity,
-      beam: beamMaterial.uniforms.opacity.value,
+      day: { ...lightingState.day },
+      night: { ...lightingState.night },
     };
-    const lightTo = focusId ? selectedLighting : overviewLighting;
+    const lightTo = focusId
+      ? { day: selectedLighting, night: nightSelectedLighting }
+      : { day: overviewLighting, night: nightOverviewLighting };
     const root = focusId ? workRoots.get(focusId) : null;
     const pose = root ? focusLightPose(root) : null;
     const fromSpotPosition = focusSpotlight.position.clone();
@@ -356,7 +428,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     if (pose) {
       focusSpotlight.visible = true;
       focusBeam.visible = true;
-      if (lightFrom.spot === 0) {
+      if (lightingState.day.spot === 0 && lightingState.night.spot === 0) {
         focusSpotlight.position.copy(pose.spotPosition);
         focusSpotlight.target.position.copy(pose.spotTarget);
         focusBeam.position.copy(pose.beamPosition);
@@ -373,12 +445,13 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
         const eased = t * t * (3 - 2 * t);
         const lightT = Math.min(1, (now - startedAt) / (reduceMotion ? 120 : 380));
         const lightEased = lightT * lightT * (3 - 2 * lightT);
-        ambientLight.intensity = THREE.MathUtils.lerp(lightFrom.ambient, lightTo.ambient, lightEased);
-        sunlight.intensity = THREE.MathUtils.lerp(lightFrom.sun, lightTo.sun, lightEased);
-        softFill.intensity = THREE.MathUtils.lerp(lightFrom.fill, lightTo.fill, lightEased);
-        focusSpotlight.intensity = THREE.MathUtils.lerp(lightFrom.spot, lightTo.spot, lightEased);
-        beamMaterial.uniforms.opacity.value = THREE.MathUtils.lerp(lightFrom.beam, lightTo.beam, lightEased);
-        if (pose && lightFrom.spot > 0) {
+        for (const theme of ['day', 'night']) {
+          const from = lightFrom[theme];
+          const to = lightTo[theme];
+          for (const key of Object.keys(from)) lightingState[theme][key] = THREE.MathUtils.lerp(from[key], to[key], lightEased);
+        }
+        applyLighting();
+        if (pose && (lightFrom.day.spot > 0 || lightFrom.night.spot > 0)) {
           focusSpotlight.position.lerpVectors(fromSpotPosition, pose.spotPosition, lightEased);
           focusSpotlight.target.position.lerpVectors(fromSpotTarget, pose.spotTarget, lightEased);
           focusBeam.position.lerpVectors(fromBeamPosition, pose.beamPosition, lightEased);
@@ -482,6 +555,8 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     workRoots,
     controls,
     camera,
+    setTheme,
+    getTheme() { return currentTheme; },
     setHoveredWork,
     setLabelUpdateHandler(handler) { labelUpdateHandler = handler; render(); },
     focusWork,
@@ -500,6 +575,7 @@ export function createStudio({ canvas, onLoaded, onProgress, onError, onSelect, 
     dispose() {
       cancelAnimationFrame(animationFrame);
       cancelAnimationFrame(hoverFrame);
+      cancelAnimationFrame(themeAnimationFrame);
       resize.disconnect();
       controls.dispose();
       draco.dispose();
@@ -729,14 +805,21 @@ function createWallTitle(font) {
 }
 
 
-function createSky(scene) {
+function createSky(scene, initialNightMix = 0) {
   const geometry = new THREE.SphereGeometry(420, 48, 32);
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
+    uniforms: { nightMix: { value: initialNightMix } },
     vertexShader: `varying vec3 vSkyDirection; void main(){ vec4 world = modelMatrix * vec4(position,1.0); vSkyDirection = normalize(world.xyz - cameraPosition); gl_Position = projectionMatrix * viewMatrix * world; }`,
     fragmentShader: `
+      uniform float nightMix;
       varying vec3 vSkyDirection;
+      float hash21(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
       float cloudPuff(vec2 point, vec2 center, vec2 radius) {
         vec2 q = (point - center) / radius;
         return exp(-dot(q, q) * 2.2);
@@ -756,17 +839,32 @@ function createSky(scene) {
         float h = smoothstep(-0.055, 0.19, d.y);
         vec3 horizon = vec3(1.00, 0.91, 0.77);
         vec3 zenith = vec3(0.29, 0.57, 0.89);
-        vec3 color = mix(horizon, zenith, h);
+        vec3 nightHorizon = vec3(0.23, 0.30, 0.39);
+        vec3 nightZenith = vec3(0.025, 0.055, 0.12);
+        vec3 color = mix(mix(horizon, zenith, h), mix(nightHorizon, nightZenith, h), nightMix);
         vec2 skyPoint = vec2(azimuth, elevation);
         float clouds = max(max(cloudCluster(skyPoint, -0.46, 0.078), cloudCluster(skyPoint, -0.23, 0.092)), max(cloudCluster(skyPoint, 0.02, 0.076), max(cloudCluster(skyPoint, 0.27, 0.094), cloudCluster(skyPoint, 0.49, 0.078))));
         vec3 cloudColor = mix(vec3(0.90, 0.86, 0.78), vec3(1.0, 0.99, 0.96), smoothstep(0.015, 0.055, elevation));
-        color = mix(color, cloudColor, clouds * 0.98);
+        vec3 nightCloudColor = mix(vec3(0.31, 0.39, 0.49), vec3(0.56, 0.63, 0.73), smoothstep(0.015, 0.055, elevation));
+        color = mix(color, mix(cloudColor, nightCloudColor, nightMix), clouds * mix(0.98, 0.66, nightMix));
         vec3 sunDirection = normalize(vec3(-0.28, 0.055, -0.96));
         float sunDot = max(dot(d, sunDirection), 0.0);
         float sunDisk = smoothstep(0.99945, 0.99978, sunDot);
         float sunHalo = pow(sunDot, 24.0) * 0.18 + pow(sunDot, 72.0) * 0.26;
-        color = mix(color, vec3(1.0, 0.97, 0.86), sunDisk);
-        color += vec3(0.12, 0.09, 0.05) * sunHalo;
+        color = mix(color, vec3(1.0, 0.97, 0.86), sunDisk * (1.0 - nightMix));
+        color += vec3(0.12, 0.09, 0.05) * sunHalo * (1.0 - nightMix);
+        vec3 moonDirection = normalize(vec3(0.36, 0.05, -0.93));
+        float moonDot = max(dot(d, moonDirection), 0.0);
+        float moonDisk = smoothstep(0.9995, 0.99985, moonDot);
+        float moonHalo = pow(moonDot, 250.0) * 0.012 + pow(moonDot, 500.0) * 0.045;
+        color = mix(color, vec3(0.88, 0.92, 1.0), moonDisk * nightMix);
+        color += vec3(0.34, 0.48, 0.72) * moonHalo * nightMix;
+        vec2 starGrid = skyPoint * vec2(72.0, 42.0);
+        vec2 starCell = floor(starGrid);
+        vec2 starOffset = fract(starGrid) - 0.5;
+        float starSize = 1.0 - smoothstep(0.018, 0.14, length(starOffset));
+        float star = step(0.985, hash21(starCell)) * starSize * smoothstep(-0.01, 0.12, d.y);
+        color += vec3(0.66, 0.78, 1.0) * star * nightMix * 0.9;
         gl_FragColor = vec4(color, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -776,6 +874,7 @@ function createSky(scene) {
   sky.renderOrder = -2;
   sky.frustumCulled = false;
   scene.add(sky);
+  return { setNightMix(value) { material.uniforms.nightMix.value = value; } };
 }
 
 function createMeadow(scene) {
