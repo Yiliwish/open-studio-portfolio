@@ -99,7 +99,7 @@ export const works = [
         tags: ['AI 产品', '3D 工作流', '产品设计'],
         note: 'PDF 中包含简历原有的联系方式。',
         media: [
-          { type: 'image', src: '/works/resume/resume-preview.webp', label: '简历首页预览', alt: '个人简历首页，包含工作经历、教育背景与联系方式' },
+          { type: 'image', src: '/works/resume/resume-preview.webp', pages: ['/works/resume/resume-preview.webp', '/works/resume/resume-page-2.webp'], label: '简历首页预览', alt: '个人简历，包含工作经历、教育背景、项目经验与联系方式' },
         ],
         actions: [
           { label: '下载简历 PDF', href: '/works/resume/resume.pdf', download: true },

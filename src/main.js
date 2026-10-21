@@ -18,7 +18,7 @@ const tooltip = $('#work-tooltip');
 const tooltipNumber = $('#work-tooltip-number');
 const tooltipTitle = $('#work-tooltip-title');
 const resumeLightbox = $('#resume-lightbox');
-const resumeLightboxImage = $('#resume-lightbox-image');
+const resumeLightboxPages = $('#resume-lightbox-pages');
 const projectTabs = $('#project-tabs');
 const mediaStage = $('#media-stage');
 const mediaGallery = $('#media-gallery');
@@ -352,8 +352,14 @@ function renderMedia(item) {
       trigger.setAttribute('aria-haspopup', 'dialog');
       trigger.append(image, makeElement('span', 'stage-caption', '点击放大查看'));
       trigger.addEventListener('click', () => {
-        resumeLightboxImage.src = item.src;
-        resumeLightboxImage.alt = item.alt || item.label;
+        const pages = item.pages || [item.src];
+        resumeLightboxPages.replaceChildren(...pages.map((src, index) => {
+          const page = makeElement('img', 'resume-lightbox-image');
+          page.src = src;
+          page.alt = `${item.alt || item.label}（第 ${index + 1} 页）`;
+          page.decoding = 'async';
+          return page;
+        }));
         if (!resumeLightbox.open) resumeLightbox.showModal();
       });
       mediaStage.append(trigger);
@@ -596,6 +602,7 @@ async function mountModelViewer(canvas, item, status) {
 
 $('#close-work').addEventListener('click', () => closeWork());
 $('#close-resume-lightbox').addEventListener('click', () => resumeLightbox.close());
+resumeLightbox.addEventListener('close', () => resumeLightboxPages.replaceChildren());
 $('#reset-view').addEventListener('click', () => {
   previousWorkTrigger = $('#reset-view');
   closeWork({ overview: true });
