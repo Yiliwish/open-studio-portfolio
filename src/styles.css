@@ -144,8 +144,8 @@ button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid
 .resume-lightbox-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 18px 8px 22px; border-bottom: 1px solid var(--line); }
 .resume-lightbox-topline h2 { margin: 0 0 2px; color: var(--ink); font-size: 15px; font-weight: 650; }
 .resume-lightbox-help { color: #758073; font-size: 12px; }
-.resume-lightbox-content { display: flex; min-height: 0; flex-direction: column; align-items: center; overflow: auto; padding: 16px; background: #e7e4dc; }
-.resume-lightbox-pages { display: flex; width: 100%; flex-direction: column; align-items: center; gap: 16px; }
+.resume-lightbox-content { display: block; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 16px; background: #e7e4dc; }
+.resume-lightbox-pages { display: grid; width: 100%; justify-items: center; gap: 16px; }
 .resume-lightbox-image { display: block; width: min(100%, 1000px); height: auto; max-width: 100%; object-fit: contain; box-shadow: 0 8px 30px rgba(37, 42, 35, .17); }
 .media-thumb { position: relative; display: grid; min-width: 120px; max-width: 156px; height: 76px; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 8px; padding: 7px; border: 1px solid rgba(42, 57, 47, .1); border-radius: 12px; background: rgba(239, 237, 226, .72); color: #506053; text-align: left; cursor: pointer; transition: border-color .2s ease, background .2s ease, transform .2s ease; }
 .media-thumb:hover { transform: translateY(-2px); }
